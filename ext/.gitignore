@@ -39,3 +39,4 @@ tests/*.mem
 
 # autoconf keeps a backup of anything it regenerates
 *~
+.build-mode

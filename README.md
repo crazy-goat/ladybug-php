@@ -238,7 +238,7 @@ composer ci            # style, static analysis, refactor check, tests
 
 | | |
 |---|---|
-| `composer test` | full suite (173 tests) |
+| `composer test` | full suite (200 tests) |
 | `composer test:unit` | no database needed |
 | `composer test:ffi` | integration suite against FFI |
 | `composer test:ext` | the same suite against the native extension |
@@ -247,6 +247,7 @@ composer ci            # style, static analysis, refactor check, tests
 | `composer rector` | Rector dry-run |
 | `composer cs:fix` | PHP-CS-Fixer |
 | `make ext-test` | the extension's own `.phpt` tests |
+| `make ext-asan` + `make test-asan` | the integration suite under AddressSanitizer |
 
 The integration suite is backend-agnostic: `LADYBUG_CONNECTOR` picks which one it exercises,
 so both implementations are held to identical assertions. That is the design paying for

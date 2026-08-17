@@ -98,6 +98,37 @@ jobs:
       - name: Extension .phpt tests
         run: make ext-test
 
+  # The extension manages C resources by hand — handles pinned by refcount, parents freed
+  # after children — and functional tests pass right up until the corruption surfaces
+  # somewhere else entirely. (A close-ordering bug once showed up as an 8 TB mmap failure in
+  # an unrelated test.) So the whole integration suite also runs against a poisoned heap.
+  sanitizer:
+    name: AddressSanitizer (php 8.3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: ffi, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Fetch liblbug
+        run: bash tools/fetch-liblbug.sh "$LIBLBUG_VERSION"
+
+      - name: Build the extension with AddressSanitizer
+        run: make ext-asan
+
+      # make test-asan refuses to run against an uninstrumented .so, so a silently
+      # unsanitised pass is not possible here.
+      - name: Integration suite under AddressSanitizer
+        run: make test-asan
+
   # Static linking is a separate code path in config.m4 and a separate failure mode (the
   # C++ runtime has to be pulled in explicitly), so it gets its own job. The archive is
   # ~80 MB, which is why this is not part of the matrix.

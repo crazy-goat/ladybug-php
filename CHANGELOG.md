@@ -11,6 +11,16 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+Supports liblbug 0.19.x.
+
+### Added
+
+- `RECURSIVE_REL` values are returned as `Ladybug\Type\Path` instead of liblbug's text
+  rendering. A path is a STRUCT of two lists and liblbug's struct accessors do read it — the
+  members are the same `Node` and `Rel` objects every other query produces. `Path` exposes
+  `$nodes`, `$rels`, `length()`, `start()` and `end()`, and is deliberately neither iterable
+  nor countable: both would have to pick between nodes and relationships.
+
 ## [0.2.1] - 2026-08-17
 
 Supports liblbug 0.19.x. Memory-safety fixes — recommended over 0.2.0, where reading an

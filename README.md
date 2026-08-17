@@ -228,7 +228,7 @@ get a `#2`, `#3` suffix. Use `fetchNumeric()` when positions matter.
 | `MAP` | associative array, or a list of `{key, value}` pairs when keys are not usable as PHP keys |
 | `NODE` | `Ladybug\Type\Node` |
 | `REL` | `Ladybug\Type\Rel` |
-| `RECURSIVE_REL` | `string` (liblbug's own rendering — no dedicated shape yet) |
+| `RECURSIVE_REL` | `Ladybug\Type\Path` |
 | `NULL` | `null` |
 
 `TIMESTAMP_NS` is truncated to microseconds, PHP's finest resolution — read it as
@@ -247,6 +247,21 @@ $connection->query('RETURN cast(cast([1, 2, 3] AS INT64[3]) AS INT64[]) AS l')->
 
 Cast to a `LIST` in Cypher when you want structure. This is a liblbug limitation, not a
 design choice — it will become a real mapping when the C API can read those types.
+
+A `Path` (from `MATCH p = (a)-[:Knows*1..3]->(b)`) carries the same fully converted `Node` and
+`Rel` objects every other query returns:
+
+```php
+$path->nodes;        // list<Node>, in traversal order
+$path->rels;         // list<Rel>
+$path->length();     // hops — one fewer than the node count on a simple path
+$path->start();      // ?Node
+$path->end();        // ?Node
+```
+
+It is deliberately neither iterable nor countable: both would have to pick between nodes and
+relationships, and a wrong guess in an API heading for 1.0 is worse than making the call site
+say which one it means.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 
@@ -270,7 +285,7 @@ composer ci            # style, static analysis, refactor check, tests
 
 | | |
 |---|---|
-| `composer test` | full suite (222 tests) |
+| `composer test` | full suite (226 tests) |
 | `composer test:unit` | no database needed |
 | `composer test:ffi` | integration suite against FFI |
 | `composer test:ext` | the same suite against the native extension |
@@ -361,8 +376,6 @@ archive and asserts the resulting `.so` carries no liblbug dependency. Against l
 
 Not done yet:
 
-- `RECURSIVE_REL` as a typed path object — it currently arrives as liblbug's own rendering
-  rather than being dropped, in both backends
 - Arrow and bulk-copy ingestion (`lbug_connection_create_arrow_table` and friends)
 - a PIE / PECL package for the extension, so `pie install` works without cloning
 - user-defined functions (`create_function` in the Python client) and `AsyncConnection`

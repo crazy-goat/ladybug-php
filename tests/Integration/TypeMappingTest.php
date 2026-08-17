@@ -7,12 +7,14 @@ namespace Ladybug\Tests\Integration;
 use Ladybug\Connector\Ffi\ValueReader;
 use Ladybug\Type\DataType;
 use Ladybug\Type\Node;
+use Ladybug\Type\Path;
 use Ladybug\Type\Rel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /** Every LadybugDB type this client claims to understand, checked against the real thing. */
 #[CoversClass(ValueReader::class)]
+#[CoversClass(Path::class)]
 final class TypeMappingTest extends IntegrationTestCase
 {
     /** @return iterable<string, array{string, mixed}> */
@@ -194,23 +196,75 @@ final class TypeMappingTest extends IntegrationTestCase
         self::assertSame(['a.name' => 'Piotr', 'b.name' => 'Ada', 'k.since' => 2019], $row);
     }
 
-    public function testARecursivePathIsReachable(): void
+    public function testARecursivePathArrivesAsAPathObject(): void
     {
-        $this->createPersonSchema();
-        foreach (['a', 'b', 'c'] as $name) {
-            $this->connection->run('CREATE (:Person {name: $name, age: 1})', ['name' => $name]);
+        $path = $this->threeNodeChain();
+
+        self::assertInstanceOf(Path::class, $path);
+        self::assertSame(2, $path->length());
+        self::assertCount(3, $path->nodes);
+        self::assertCount(2, $path->rels);
+    }
+
+    public function testAPathCarriesFullyConvertedNodesAndRels(): void
+    {
+        // The members must be the same Node and Rel instances every other query produces —
+        // a path is not a special case with its own reduced representation.
+        $path = $this->threeNodeChain();
+
+        $names = [];
+        foreach ($path->nodes as $node) {
+            self::assertInstanceOf(Node::class, $node);
+            $names[] = $node->get('name');
         }
 
-        $this->connection->run("MATCH (x:Person), (y:Person) WHERE x.name = 'a' AND y.name = 'b' CREATE (x)-[:Knows]->(y)");
-        $this->connection->run("MATCH (x:Person), (y:Person) WHERE y.name = 'c' AND x.name = 'b' CREATE (x)-[:Knows]->(y)");
+        $years = [];
+        foreach ($path->rels as $rel) {
+            self::assertInstanceOf(Rel::class, $rel);
+            $years[] = $rel->get('since');
+        }
 
-        $path = $this->connection
-            ->query("MATCH p = (x:Person)-[:Knows*1..3]->(y:Person) WHERE x.name = 'a' AND y.name = 'c' RETURN p")
+        self::assertSame(['a', 'b', 'c'], $names);
+        self::assertSame([2001, 2002], $years);
+    }
+
+    public function testAPathKnowsItsEndpoints(): void
+    {
+        $path = $this->threeNodeChain();
+
+        self::assertSame('a', $path->start()?->get('name'));
+        self::assertSame('c', $path->end()?->get('name'));
+        // Endpoints follow traversal order, and the rels connect them in that order.
+        self::assertEquals($path->nodes[0]->id, $path->rels[0]->src);
+        self::assertEquals($path->nodes[2]->id, $path->rels[1]->dst);
+    }
+
+    public function testAPathIsJsonSerialisable(): void
+    {
+        $json = json_decode(json_encode($this->threeNodeChain(), JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertIsArray($json);
+        self::assertArrayHasKey('_nodes', $json);
+        self::assertArrayHasKey('_rels', $json);
+        self::assertCount(3, $json['_nodes']);
+        self::assertSame('a', $json['_nodes'][0]['name']);
+    }
+
+    /** a -[since 2001]-> b -[since 2002]-> c, returned as a path. */
+    private function threeNodeChain(): mixed
+    {
+        $this->connection->run('CREATE NODE TABLE Chain(name STRING, PRIMARY KEY(name))');
+        $this->connection->run('CREATE REL TABLE Step(FROM Chain TO Chain, since INT64)');
+        foreach (['a', 'b', 'c'] as $name) {
+            $this->connection->run('CREATE (:Chain {name: $name})', ['name' => $name]);
+        }
+
+        $this->connection->run("MATCH (x:Chain {name: 'a'}), (y:Chain {name: 'b'}) CREATE (x)-[:Step {since: 2001}]->(y)");
+        $this->connection->run("MATCH (x:Chain {name: 'b'}), (y:Chain {name: 'c'}) CREATE (x)-[:Step {since: 2002}]->(y)");
+
+        return $this->connection
+            ->query("MATCH p = (x:Chain {name: 'a'})-[:Step*1..3]->(y:Chain {name: 'c'}) RETURN p")
             ->fetchOne();
-
-        // RECURSIVE_REL has no dedicated PHP shape yet, so it arrives as liblbug's own
-        // rendering rather than being dropped.
-        self::assertNotNull($path);
     }
 
     public function testAFixedSizeArrayArrivesAsLiblbugsOwnRendering(): void

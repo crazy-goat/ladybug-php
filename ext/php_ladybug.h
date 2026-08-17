@@ -99,6 +99,7 @@ ZEND_BEGIN_MODULE_GLOBALS(ladybug)
     zend_class_entry *internal_id_ce;
     zend_class_entry *node_ce;
     zend_class_entry *rel_ce;
+    zend_class_entry *path_ce;
     zend_class_entry *datetime_ce;
     zend_class_entry *dateinterval_ce;
 ZEND_END_MODULE_GLOBALS(ladybug)

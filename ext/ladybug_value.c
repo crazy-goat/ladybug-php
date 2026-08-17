@@ -674,6 +674,98 @@ failed:
     return FAILURE;
 }
 
+/*
+ * A RECURSIVE_REL is a STRUCT of two lists, and unlike ARRAY and UNION the struct accessors
+ * do read it. The conversion goes through ladybug_struct_to_zval so the members are the same
+ * Node and Rel instances every other path produces, then the two fields are lifted out.
+ *
+ * Field names come from liblbug ("_NODES", "_RELS"); matched case-insensitively so a change
+ * of casing there becomes an error rather than a silently empty path.
+ */
+static zval *ladybug_path_field(HashTable *fields, const char *name)
+{
+    zend_string *key;
+    zval *entry;
+
+    ZEND_HASH_FOREACH_STR_KEY_VAL(fields, key, entry) {
+        if (key != NULL && zend_binary_strcasecmp(
+                ZSTR_VAL(key), ZSTR_LEN(key), name, strlen(name)) == 0) {
+            return entry;
+        }
+    } ZEND_HASH_FOREACH_END();
+
+    return NULL;
+}
+
+/* Copies one field into *out as a list, checking that every entry is of the expected class.
+ * Without that check a changed path shape would build a wrong Path here while the FFI reader
+ * threw — and a divergence between the backends is exactly what must not happen. */
+static int ladybug_path_members(HashTable *fields, const char *name, zend_class_entry *expected, zval *out)
+{
+    zval *field = ladybug_path_field(fields, name);
+    zval *entry;
+
+    if (field == NULL || Z_TYPE_P(field) != IS_ARRAY) {
+        ladybug_throw(
+            ladybug_exception_ce,
+            "A RECURSIVE_REL value has no %s list. liblbug returned a path shape this client "
+            "does not know.",
+            name
+        );
+        return FAILURE;
+    }
+
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(field), entry) {
+        if (Z_TYPE_P(entry) != IS_OBJECT || !instanceof_function(Z_OBJCE_P(entry), expected)) {
+            ladybug_throw(
+                ladybug_exception_ce,
+                "A RECURSIVE_REL %s entry is not a %s.",
+                name,
+                ZSTR_VAL(expected->name)
+            );
+            return FAILURE;
+        }
+    } ZEND_HASH_FOREACH_END();
+
+    ZVAL_COPY(out, field);
+
+    return SUCCESS;
+}
+
+static int ladybug_path_to_zval(lbug_value *value, zval *out)
+{
+    zend_class_entry *path_ce = ladybug_lookup_class(&LADYBUG_G(path_ce), "Ladybug\\Type\\Path");
+    zend_class_entry *node_ce = ladybug_lookup_class(&LADYBUG_G(node_ce), "Ladybug\\Type\\Node");
+    zend_class_entry *rel_ce = ladybug_lookup_class(&LADYBUG_G(rel_ce), "Ladybug\\Type\\Rel");
+    zval fields;
+    zval arguments[2];
+    int status;
+
+    if (path_ce == NULL || node_ce == NULL || rel_ce == NULL) {
+        return FAILURE;
+    }
+    if (ladybug_struct_to_zval(value, &fields) != SUCCESS) {
+        return FAILURE;
+    }
+
+    if (ladybug_path_members(Z_ARRVAL(fields), "_NODES", node_ce, &arguments[0]) != SUCCESS) {
+        zval_ptr_dtor(&fields);
+        return FAILURE;
+    }
+    if (ladybug_path_members(Z_ARRVAL(fields), "_RELS", rel_ce, &arguments[1]) != SUCCESS) {
+        zval_ptr_dtor(&arguments[0]);
+        zval_ptr_dtor(&fields);
+        return FAILURE;
+    }
+    zval_ptr_dtor(&fields);
+
+    status = ladybug_new_instance(path_ce, out, 2, arguments);
+    zval_ptr_dtor(&arguments[0]);
+    zval_ptr_dtor(&arguments[1]);
+
+    return status;
+}
+
 static int ladybug_node_to_zval(lbug_value *value, zval *out)
 {
     zend_class_entry *ce = ladybug_lookup_class(&LADYBUG_G(node_ce), "Ladybug\\Type\\Node");
@@ -914,6 +1006,8 @@ int ladybug_value_to_zval(lbug_value *value, zval *out)
             return ladybug_node_to_zval(value, out);
         case LBUG_REL:
             return ladybug_rel_to_zval(value, out);
+        case LBUG_RECURSIVE_REL:
+            return ladybug_path_to_zval(value, out);
         default:
             return ladybug_to_string_zval(value, out);
     }

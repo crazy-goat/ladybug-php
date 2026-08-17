@@ -1125,6 +1125,7 @@ PHP_RINIT_FUNCTION(ladybug)
     LADYBUG_G(internal_id_ce) = NULL;
     LADYBUG_G(node_ce) = NULL;
     LADYBUG_G(rel_ce) = NULL;
+    LADYBUG_G(path_ce) = NULL;
     LADYBUG_G(datetime_ce) = NULL;
     LADYBUG_G(dateinterval_ce) = NULL;
 

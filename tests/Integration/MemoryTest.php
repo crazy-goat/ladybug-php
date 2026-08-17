@@ -97,6 +97,33 @@ final class MemoryTest extends IntegrationTestCase
         self::assertLessThan(self::ALLOWED_GROWTH_KB, $growth, $this->explain($growth, self::ITERATIONS));
     }
 
+    public function testConvertingPathsDoesNotLeak(): void
+    {
+        // Paths allocate the most per row: a struct of two lists, each element a Node or Rel
+        // with its own id, label and property table. The C branch copies zvals by hand.
+        $this->connection->run('CREATE NODE TABLE Chain(name STRING, PRIMARY KEY(name))');
+        $this->connection->run('CREATE REL TABLE Step(FROM Chain TO Chain, since INT64)');
+        foreach (range(1, 6) as $i) {
+            $this->connection->run('CREATE (:Chain {name: $n})', ['n' => "n{$i}"]);
+        }
+
+        foreach (range(1, 5) as $i) {
+            $this->connection->run(
+                'MATCH (a:Chain {name: $from}), (b:Chain {name: $to}) CREATE (a)-[:Step {since: $y}]->(b)',
+                ['from' => "n{$i}", 'to' => 'n' . ($i + 1), 'y' => 2000 + $i],
+            );
+        }
+
+        $growth = $this->growthOver(function (): void {
+            $paths = $this->connection
+                ->query("MATCH p = (a:Chain {name: 'n1'})-[:Step*1..5]->(b:Chain) RETURN p")
+                ->fetchAll();
+            self::assertNotEmpty($paths);
+        }, iterations: 200, warmup: 20);
+
+        self::assertLessThan(self::ALLOWED_GROWTH_KB, $growth, $this->explain($growth, 200));
+    }
+
     public function testConvertingEveryValueTypeDoesNotLeak(): void
     {
         // Composite values are the risky ones: the reader descends into lists, structs and

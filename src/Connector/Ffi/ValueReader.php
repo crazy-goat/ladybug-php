@@ -11,6 +11,7 @@ use Ladybug\Exception\TypeException;
 use Ladybug\Type\DataType;
 use Ladybug\Type\InternalId;
 use Ladybug\Type\Node;
+use Ladybug\Type\Path;
 use Ladybug\Type\Rel;
 
 /**
@@ -98,6 +99,7 @@ final class ValueReader
             // value itself is intact — cast(col AS STRING) in Cypher gives the same text.
             DataType::Array, DataType::Union => $this->toString($value),
             DataType::Map => $this->map($value),
+            DataType::RecursiveRel => $this->path($value),
             DataType::Node => $this->node($value),
             DataType::Rel => $this->rel($value),
             // RECURSIVE_REL and anything the header gains later: keep the data reachable
@@ -417,6 +419,59 @@ final class ValueReader
         }
 
         return $map;
+    }
+
+    /**
+     * A RECURSIVE_REL is a STRUCT of two lists, which the struct accessors do read — unlike
+     * ARRAY and UNION above. The field names come from liblbug ("_NODES", "_RELS"); matched
+     * case-insensitively so a change in casing is not a silent behaviour change.
+     */
+    private function path(CData $value): Path
+    {
+        $fields = [];
+        foreach ($this->struct($value) as $name => $field) {
+            $fields[strtoupper((string) $name)] = $field;
+        }
+
+        return new Path(
+            nodes: $this->pathMembers($fields, '_NODES', Node::class),
+            rels: $this->pathMembers($fields, '_RELS', Rel::class),
+        );
+    }
+
+    /**
+     * @template T of Node|Rel
+     *
+     * @param array<string, mixed> $fields
+     * @param class-string<T>      $expected
+     *
+     * @return list<T>
+     */
+    private function pathMembers(array $fields, string $key, string $expected): array
+    {
+        $members = $fields[$key] ?? null;
+        if (!\is_array($members)) {
+            throw new TypeException(\sprintf(
+                'A RECURSIVE_REL value has no %s list (fields: %s). liblbug returned a path shape this client does not know.',
+                $key,
+                implode(', ', array_keys($fields)) ?: 'none',
+            ));
+        }
+
+        $typed = [];
+        foreach ($members as $member) {
+            if (!$member instanceof $expected) {
+                throw new TypeException(\sprintf(
+                    'A RECURSIVE_REL %s entry is %s, expected %s.',
+                    $key,
+                    get_debug_type($member),
+                    $expected,
+                ));
+            }
+            $typed[] = $member;
+        }
+
+        return $typed;
     }
 
     private function node(CData $value): Node

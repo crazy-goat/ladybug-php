@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Ladybug\Tests\Integration;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use Ladybug\Exception\InvalidArgumentException;
 use Ladybug\Exception\TypeException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * `Connection::copyInto()` against a real database, on whichever backend is under test.

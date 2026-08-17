@@ -21,10 +21,12 @@ Supports liblbug 0.19.x.
 - `DataType::Unknown`, reported for any type id this client has no case for. Loaded extensions
   can introduce types at any time, and one unmapped column should not fail the whole query —
   the value still arrives as liblbug's own rendering.
-- Integration coverage for the `json`, `fts` and `vector` extensions, including that vector
-  search returns neighbours in distance order and that embedding columns (`FLOAT[n]`, an
-  `ARRAY`) arrive as text and cast to a list. These skip when `INSTALL` cannot reach the
-  network.
+- Integration coverage for the `json`, `fts` and `vector` extensions. `INSTALL` segfaults on
+  Linux with liblbug 0.19.1 — verified for all three extensions and both connectors, while the
+  same code installs cleanly on macOS — so these tests skip there rather than crashing the
+  suite; `LADYBUG_TEST_EXTENSIONS=1` overrides. Documented, because it affects anyone deploying
+  vector search on Linux. Coverage includes vector search returning neighbours in distance order, and embedding columns
+  (`FLOAT[n]`, an `ARRAY`) arriving as text and casting to a list.
 - `RECURSIVE_REL` values are returned as `Ladybug\Type\Path` instead of liblbug's text
   rendering. A path is a STRUCT of two lists and liblbug's struct accessors do read it — the
   members are the same `Node` and `Rel` objects every other query produces. `Path` exposes

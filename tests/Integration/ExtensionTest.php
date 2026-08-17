@@ -110,15 +110,29 @@ final class ExtensionTest extends IntegrationTestCase
     }
 
     /**
-     * Installs and loads an official extension, skipping the test when it cannot be fetched —
-     * an offline machine is not a failing build.
+     * Installs and loads an official extension, or skips.
+     *
+     * `INSTALL` is not merely unreliable on Linux with liblbug 0.19.1 — it segfaults, taking
+     * the whole test process with it. Verified on ubuntu-latest for all three extensions and
+     * on both connectors, while plain queries on the same connection are fine; on macOS the
+     * same code installs and passes. A segfault cannot be caught, so the only safe option is
+     * not to attempt it. Set LADYBUG_TEST_EXTENSIONS=1 to try anyway, once a liblbug that
+     * reports the failure instead of crashing is in use.
      */
     private function load(string $name): void
     {
+        if (PHP_OS_FAMILY === 'Linux' && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
+            self::markTestSkipped(
+                "INSTALL crashes the process on Linux with liblbug 0.19.1, so the {$name} extension "
+                . 'cannot be tested here. Set LADYBUG_TEST_EXTENSIONS=1 to override.',
+            );
+        }
+
         try {
             $this->connection->run("INSTALL {$name}");
             $this->connection->run("LOAD {$name}");
         } catch (\Throwable $e) {
+            // Offline, or the extension host is unreachable. Not a failing build.
             self::markTestSkipped("Could not install the {$name} extension: {$e->getMessage()}");
         }
     }

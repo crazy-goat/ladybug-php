@@ -285,8 +285,14 @@ Two things worth knowing:
 - **Embedding columns are `ARRAY`**, so `RETURN d.emb` gives text
   (`'[1.000000,0.000000,0.000000]'`). Use `cast(d.emb AS FLOAT[])` for a PHP array of floats.
   Search itself is unaffected — the index reads the column, not your process.
-- **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use. The tests for
-  these extensions skip when it is unavailable.
+- **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use.
+- **`INSTALL` crashes the process on Linux** with liblbug 0.19.1 — a segfault, not an
+  exception, so there is nothing to catch. Reproduced on ubuntu-latest for all three
+  extensions and through both connectors, while ordinary queries on the same connection keep
+  working; the same code installs cleanly on macOS. Install extensions out of band there (a
+  separate process, or a pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a
+  normal exception when the extension is missing. The tests for these extensions skip on Linux
+  for this reason — `LADYBUG_TEST_EXTENSIONS=1` overrides.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 

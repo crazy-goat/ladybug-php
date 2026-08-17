@@ -60,9 +60,26 @@ ConnectorFactory::register('fake', MyFakeConnector::class);
 | | ext-ladybug | FFI |
 |---|---|---|
 | Setup | `make ext` | drop in `liblbug` |
-| Row fetching | conversion in C | conversion in PHP, several times slower |
+| Row fetching | conversion in C | conversion in PHP, 3-6x slower |
 | Requirements | matching PHP ABI | `ext-ffi`, `ffi.enable` |
 | Priority | 100 | 10 |
+
+`make bench` runs both backends in one process, so the numbers are comparable. On an M4 Pro,
+liblbug 0.19.1, PHP 8.5:
+
+| scenario | unit | ext | ffi | ratio |
+|---|---|---|---|---|
+| fetch scalars | rows/s | 1,056,357 | 164,399 | 6.4x |
+| fetch nodes | nodes/s | 411,958 | 73,117 | 5.6x |
+| fetch temporal | rows/s | 513,081 | 169,262 | 3.0x |
+| insert prepared | inserts/s | 10,556 | 10,753 | 1.0x |
+| tiny queries | queries/s | 7,469 | 7,551 | 1.0x |
+
+Which says something more useful than "the extension is faster": the gap is entirely in value
+conversion. Writes and per-query overhead are bound by liblbug itself, so a write-heavy
+workload gains nothing from compiling the extension — and `DateTimeImmutable` construction
+narrows the gap to 3x even on a read path, because there PHP is doing real work rather than
+just copying scalars.
 
 Selection order:
 
@@ -248,6 +265,7 @@ composer ci            # style, static analysis, refactor check, tests
 | `composer cs:fix` | PHP-CS-Fixer |
 | `make ext-test` | the extension's own `.phpt` tests |
 | `make ext-asan` + `make test-asan` | the integration suite under AddressSanitizer |
+| `make bench` | FFI vs the extension, both in one process |
 
 The integration suite is backend-agnostic: `LADYBUG_CONNECTOR` picks which one it exercises,
 so both implementations are held to identical assertions. That is the design paying for

@@ -6,6 +6,7 @@ parameters:
     paths:
         - src
         - tests
+        - benchmarks
     # The native extension is usually absent on the analysing machine; these stubs
     # describe its ABI so ExtConnector is still type-checked.
     scanFiles:

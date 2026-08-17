@@ -5,6 +5,7 @@
 #   make ext-asan         same, instrumented with AddressSanitizer
 #   make ext-test         run the extension's own .phpt suite
 #   make test-asan        integration suite under AddressSanitizer (needs ext-asan)
+#   make bench            FFI vs the extension, both in one process
 #   make test             PHP suite on the default connector
 #   make test-both        PHP suite on FFI and on the extension
 
@@ -25,7 +26,7 @@ define with_mode
 fi
 endef
 
-.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan ci
+.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci
 
 ext:
 	$(call with_mode,shared)
@@ -85,6 +86,10 @@ test-asan:
 	@nm $(EXT_SO) 2>/dev/null | grep -q __asan \
 		|| { echo "test-asan: $(EXT_SO) is not instrumented — run 'make ext-asan' first." >&2; exit 1; }
 	$(MAKE) test-ext RUNNER="bash $(CURDIR)/tools/run-asan.sh"
+
+# Both backends in one process, so the comparison is not across runs or machines.
+bench:
+	$(PHP) -d extension=$(EXT_SO) benchmarks/benchmark.php $(BENCH_ARGS)
 
 ci:
 	composer ci

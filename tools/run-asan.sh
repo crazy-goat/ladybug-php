@@ -23,10 +23,20 @@ fi
 find_runtime() {
     case "$(uname -s)" in
         Darwin)
-            local developer
-            developer="$(xcode-select -p 2>/dev/null || echo /Library/Developer/CommandLineTools)"
-            find "${developer}/usr/lib/clang" -name 'libclang_rt.asan_osx_dynamic.dylib' 2>/dev/null | head -1
+            local root
+            for root in "$(xcode-select -p 2>/dev/null)" /Library/Developer/CommandLineTools \
+                        /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain; do
+                [ -n "$root" ] || continue
+                local found
+                found="$(find "$root" -name 'libclang_rt.asan_osx_dynamic.dylib' 2>/dev/null | head -1)"
+                if [ -n "$found" ]; then
+                    echo "$found"
+                    return
+                fi
+            done
             ;;
+        # Linux support is here for a PHP built with ASan. A distro PHP will not work: it
+        # dlopens extensions with RTLD_DEEPBIND, which the runtime refuses outright.
         Linux)
             local candidate
             for compiler in "${CC:-cc}" gcc clang; do

@@ -15,19 +15,22 @@ Supports liblbug 0.19.x.
 
 ### Changed
 
-- The `INSTALL` crash now has a reliable trigger and an honest write-up. In a PHP process with
-  `intl` loaded the first `INSTALL` exits 139; without `intl`, on the same image and liblbug, it
-  succeeds — `make docker-repro-install` shows both. The guard checks that condition instead of
-  guessing from the platform or a CI flag.
+- The `INSTALL` crash is diagnosed. liblbug 0.19.1's prebuilt Linux `.so` exports its
+  statically linked libstdc++, including 130 `STB_GNU_UNIQUE` locale facet symbols. glibc binds
+  those process-wide regardless of `RTLD_DEEPBIND`, which Zend's `DL_LOAD` uses for every
+  extension and for `ext/ffi`'s `dlopen` — so with a system libstdc++ also loaded (`intl` is
+  enough) liblbug's locale registry is split across two runtimes, and `INSTALL` dies compiling a
+  `std::regex` inside `std::codecvt`.
 
-  The mechanism is *not* established, and the README says so. Two pure C reproducers are kept
-  in `tools/` precisely because they do not crash: neither linking libstdc++, nor preloading it
-  or the whole ICU chain, nor `RTLD_DEEPBIND`, reproduces it outside PHP — so the obvious
-  explanation (a second C++ runtime interposing on liblbug's bundled one) does not hold, even
-  though a core dump places the fault inside that runtime.
+  `tools/repro-install-crash-dlopen.c` demonstrates it in C with no PHP: DEEPBIND on liblbug
+  plus a libstdc++ loaded first gives 139, dropping either gives 0. `LD_PRELOAD` of liblbug is a
+  verified workaround on both connectors; `maxThreads: 1` is not. The upstream fix is
+  `-Wl,--exclude-libs,ALL` and `-fno-gnu-unique` on the Linux release — the macOS dylib already
+  exports none of these symbols.
 
   Three earlier descriptions of this were wrong and are corrected: it is not Linux as such, not
-  GitHub's runners as such, and not demonstrably symbol interposition.
+  GitHub's runners as such, and the first `nm` measurement that suggested no exported `std::`
+  symbols was searching demangled text against mangled output.
 - The Linux test image installs PHPUnit as a phar and nothing else. Pulling the full dev set
   fetched some fifty packages from codeload, which answers HTTP 429 often enough to break the
   build for no reason.

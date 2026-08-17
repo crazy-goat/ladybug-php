@@ -313,32 +313,49 @@ Two things worth knowing:
   (`'[1.000000,0.000000,0.000000]'`). Use `cast(d.emb AS FLOAT[])` for a PHP array of floats.
   Search itself is unaffected — the index reads the column, not your process.
 - **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use.
-- **`INSTALL` segfaults in some processes** with liblbug 0.19.1 — a segfault, not an exception,
-  so there is nothing to catch. The trigger is reliable; the mechanism is not established.
+- **`INSTALL` segfaults when PHP loads liblbug with `RTLD_DEEPBIND`** and a system libstdc++
+  is already in the process. A segfault, not an exception, so there is nothing to catch.
 
-  What is measured, all on Linux with the same liblbug and the same script:
+  liblbug 0.19.1's prebuilt Linux `.so` statically links libstdc++ and exports its symbols —
+  130 of them with `STB_GNU_UNIQUE` binding, locale facet ids such as
+  `std::moneypunct<char>::id` and their init guards:
 
-  | | |
-  |---|---|
-  | PHP with `intl` loaded | crashes on the first `INSTALL` (exit 139) |
-  | PHP without `intl` | succeeds |
-  | pure C, liblbug linked normally | succeeds |
-  | pure C, libstdc++ or the whole ICU chain preloaded, with and without `RTLD_DEEPBIND` | succeeds |
-  | `LOAD json` (which itself pulls libstdc++ in), then another `INSTALL` | succeeds |
+  ```bash
+  nm -D --defined-only lib/liblbug.so | grep -c '^[0-9a-f]* u '     # 130
+  ```
 
-  `make docker-repro-install` shows the first two rows on demand. The C attempts are
-  [`tools/repro-install-crash.c`](tools/repro-install-crash.c) and
-  [`tools/repro-install-crash-dlopen.c`](tools/repro-install-crash-dlopen.c) — kept precisely
-  because they *do not* crash: a core dump puts the fault inside liblbug's own bundled C++
-  runtime (`std::codecvt<char16_t, char, …>::do_unshift`, a dozen liblbug worker threads live),
-  yet reproducing that outside PHP by loading a second libstdc++ first — the obvious
-  explanation — does not work. So it is not plain symbol interposition, and anything more
-  specific would be a guess.
+  glibc binds `STB_GNU_UNIQUE` symbols process-wide and **ignores `RTLD_DEEPBIND` for them**,
+  while ordinary globals honour it. Zend's `DL_LOAD` uses
+  `RTLD_LAZY|RTLD_GLOBAL|RTLD_DEEPBIND` for every extension and for `ext/ffi`'s `dlopen`, so
+  liblbug's locale registry ends up split across two C++ runtimes — and the first statement
+  that compiles a `std::regex`, which `INSTALL` does when building its HTTP client, dies inside
+  `std::codecvt`. Any extension linking libstdc++ supplies the other half; `intl` alone does.
 
-  Practically: if `php -m` lists `intl` (or anything else linking libstdc++), install
-  extensions out of band — a separate process, or a pre-populated `~/.lbdb` — and use `LOAD`
-  only, which fails with a normal exception when the extension is missing. The tests detect
-  that condition and skip; `LADYBUG_TEST_EXTENSIONS=1` overrides.
+  Both ingredients are necessary and neither is sufficient.
+  [`tools/repro-install-crash-dlopen.c`](tools/repro-install-crash-dlopen.c) shows it in ~60
+  lines of C with no PHP at all:
+
+  | `deepbind` | libstdc++ loaded first | exit |
+  |---|---|---|
+  | 1 | 1 | **139** |
+  | 0 | 1 | 0 |
+  | 1 | 0 | 0 |
+
+  `make docker-repro-install` shows the same through PHP: the same image, liblbug and script
+  exit 0 without `intl` and 139 with it.
+
+  **Workaround**, verified on both connectors — load liblbug before PHP can, without DEEPBIND:
+
+  ```bash
+  LD_PRELOAD=/path/to/liblbug.so php your-script.php
+  ```
+
+  `maxThreads: 1` does *not* help; the dozen worker threads at the crash site are incidental.
+  The fix belongs upstream: link the Linux release with `-Wl,--exclude-libs,ALL` (or a version
+  script exporting only `lbug_*`) and compile with `-fno-gnu-unique`. The macOS dylib exports
+  none of these symbols, so this is a Linux packaging difference rather than a design choice.
+
+  The tests detect the hazardous combination and skip; `LADYBUG_TEST_EXTENSIONS=1` overrides.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 

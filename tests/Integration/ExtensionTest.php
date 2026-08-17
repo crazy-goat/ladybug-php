@@ -142,19 +142,17 @@ final class ExtensionTest extends IntegrationTestCase
      * `INSTALL` segfaults with liblbug 0.19.1 when a second C++ runtime is present in the
      * process, and a segfault cannot be caught — so the only safe response is to check first.
      *
-     * The trigger is the system libstdc++ being in the process at startup — PHP with `intl`
-     * loaded crashes on the first `INSTALL`, the same image without `intl` does not, and
-     * `make docker-repro-install` shows both. That correlation has held in every case observed,
-     * so it is what this guard tests.
+     * liblbug 0.19.1's Linux build exports its statically linked libstdc++, including 130
+     * STB_GNU_UNIQUE locale facet symbols. glibc binds those process-wide regardless of
+     * RTLD_DEEPBIND, which Zend's DL_LOAD uses for every extension and for ext/ffi's dlopen —
+     * so when a system libstdc++ is also loaded, liblbug's locale registry is split across two
+     * runtimes and INSTALL dies compiling a std::regex. tools/repro-install-crash-dlopen.c
+     * demonstrates it in C with no PHP; the README has the detail and the LD_PRELOAD workaround.
      *
-     * The mechanism behind it is not established, and this comment will not pretend otherwise:
-     * two pure C reproducers in tools/ fail to crash even when a second libstdc++ or the whole
-     * ICU chain is loaded first, with and without RTLD_DEEPBIND, although a core dump puts the
-     * fault inside liblbug's own bundled C++ runtime. See the README table.
-     *
-     * The check is memoised because it has to answer for the process as it started: `LOAD json`
-     * pulls libstdc++ in itself, and that later arrival is demonstrably harmless.
-     * LADYBUG_TEST_EXTENSIONS=1 overrides.
+     * So the presence of a second libstdc++ is the condition, and it is what this checks. The
+     * result is memoised because it has to answer for the process as it started: `LOAD json`
+     * pulls libstdc++ in itself, and that later arrival is harmless — the split only matters
+     * while liblbug is binding its own symbols. LADYBUG_TEST_EXTENSIONS=1 overrides.
      */
     private function load(string $name): void
     {

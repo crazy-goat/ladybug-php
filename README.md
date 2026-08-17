@@ -229,6 +229,7 @@ get a `#2`, `#3` suffix. Use `fetchNumeric()` when positions matter.
 | `NODE` | `Ladybug\Type\Node` |
 | `REL` | `Ladybug\Type\Rel` |
 | `RECURSIVE_REL` | `Ladybug\Type\Path` |
+| `JSON` (json extension) | `string` — the JSON text |
 | `NULL` | `null` |
 
 `TIMESTAMP_NS` is truncated to microseconds, PHP's finest resolution — read it as
@@ -263,6 +264,30 @@ It is deliberately neither iterable nor countable: both would have to pick betwe
 relationships, and a wrong guess in an API heading for 1.0 is worse than making the call site
 say which one it means.
 
+### LadybugDB extensions
+
+`json`, `fts` and `vector` need no API of their own — `INSTALL` and `LOAD` are Cypher, and
+their results go through the same conversion as everything else:
+
+```php
+$connection->run('INSTALL vector');
+$connection->run('LOAD vector');
+$connection->run("CALL CREATE_VECTOR_INDEX('Doc', 'emb_idx', 'emb')");
+
+$hits = $connection->query(
+    "CALL QUERY_VECTOR_INDEX('Doc', 'emb_idx', cast([1.0, 0.1, 0.0] AS FLOAT[3]), 5) "
+    . 'RETURN node.id AS id, distance',
+)->fetchAll();
+```
+
+Two things worth knowing:
+
+- **Embedding columns are `ARRAY`**, so `RETURN d.emb` gives text
+  (`'[1.000000,0.000000,0.000000]'`). Use `cast(d.emb AS FLOAT[])` for a PHP array of floats.
+  Search itself is unaffected — the index reads the column, not your process.
+- **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use. The tests for
+  these extensions skip when it is unavailable.
+
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 
 ```php
@@ -285,7 +310,7 @@ composer ci            # style, static analysis, refactor check, tests
 
 | | |
 |---|---|
-| `composer test` | full suite (226 tests) |
+| `composer test` | full suite (231 tests) |
 | `composer test:unit` | no database needed |
 | `composer test:ffi` | integration suite against FFI |
 | `composer test:ext` | the same suite against the native extension |

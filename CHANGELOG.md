@@ -15,6 +15,16 @@ Supports liblbug 0.19.x.
 
 ### Added
 
+- `DataType::Json`, for the type id the `json` extension introduces. It is 60, which lbug.h
+  does not declare — the core header stops at `UUID = 59` — so reading a `JSON` column used to
+  throw "liblbug is newer than this client" and `columnTypes()` threw a raw `ValueError`.
+- `DataType::Unknown`, reported for any type id this client has no case for. Loaded extensions
+  can introduce types at any time, and one unmapped column should not fail the whole query —
+  the value still arrives as liblbug's own rendering.
+- Integration coverage for the `json`, `fts` and `vector` extensions, including that vector
+  search returns neighbours in distance order and that embedding columns (`FLOAT[n]`, an
+  `ARRAY`) arrive as text and cast to a list. These skip when `INSTALL` cannot reach the
+  network.
 - `RECURSIVE_REL` values are returned as `Ladybug\Type\Path` instead of liblbug's text
   rendering. A path is a STRUCT of two lists and liblbug's struct accessors do read it — the
   members are the same `Node` and `Rel` objects every other query produces. `Path` exposes

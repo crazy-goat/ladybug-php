@@ -99,6 +99,8 @@ final class ValueReader
             // value itself is intact — cast(col AS STRING) in Cypher gives the same text.
             DataType::Array, DataType::Union => $this->toString($value),
             DataType::Map => $this->map($value),
+            // JSON arrives as its textual form, which is what a caller decodes anyway.
+            DataType::Json => $this->toString($value),
             DataType::RecursiveRel => $this->path($value),
             DataType::Node => $this->node($value),
             DataType::Rel => $this->rel($value),
@@ -118,8 +120,10 @@ final class ValueReader
             $this->ffi->lbug_data_type_destroy(\FFI::addr($type));
         }
 
-        return DataType::tryFrom($id)
-            ?? throw new TypeException("Unknown lbug_data_type_id: {$id}. liblbug is newer than this client.");
+        // An id with no case is a type a loaded extension added (the json extension uses 60,
+        // which lbug.h does not declare). Reporting Unknown keeps the value readable as text
+        // instead of making one unmapped column fail the whole query.
+        return DataType::tryFrom($id) ?? DataType::Unknown;
     }
 
     // -- leaves ---------------------------------------------------------------------------

@@ -305,7 +305,10 @@ final readonly class FfiConnector implements Connector
             $type = $this->alloc('lbug_logical_type');
             $this->ffi->lbug_query_result_get_column_data_type($address, $i, \FFI::addr($type));
             try {
-                $types[] = DataType::from($this->ffi->lbug_data_type_get_id(\FFI::addr($type)));
+                // Unknown ids come from loaded extensions, not from a newer liblbug — the
+                // version check rules that out — so degrade instead of failing the query.
+                $id = $this->ffi->lbug_data_type_get_id(\FFI::addr($type));
+                $types[] = DataType::tryFrom($id) ?? DataType::Unknown;
             } finally {
                 $this->ffi->lbug_data_type_destroy(\FFI::addr($type));
             }

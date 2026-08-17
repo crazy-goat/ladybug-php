@@ -46,6 +46,20 @@ enum DataType: int
     case Pointer = 58;
     case Uuid = 59;
 
+    /**
+     * Contributed by the `json` extension (`INSTALL json`), so it is absent from lbug.h —
+     * the core header stops at UUID = 59. Loaded extensions can introduce types at any time,
+     * which is why an unrecognised id degrades to Unknown rather than failing the query.
+     */
+    case Json = 60;
+
+    /**
+     * Not a liblbug id: reported for a type this client has no case for. The value is still
+     * readable — it arrives as liblbug's own rendering, the same fallback ARRAY, UNION and
+     * anything unmapped use.
+     */
+    case Unknown = -1;
+
     /** The Cypher type name, as it appears in DDL and in `CAST` expressions. */
     public function cypherName(): string
     {
@@ -85,6 +99,8 @@ enum DataType: int
             self::Union => 'UNION',
             self::Pointer => 'POINTER',
             self::Uuid => 'UUID',
+            self::Json => 'JSON',
+            self::Unknown => 'UNKNOWN',
         };
     }
 

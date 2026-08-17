@@ -266,7 +266,12 @@ final class ExtConnector implements Connector
         $native = $this->native($result, 'result', ExtResult::class);
         $ids = $this->guard(static fn(): array => ladybug_result_column_types($native));
 
-        return array_values(array_map(DataType::from(...), $ids));
+        // As in the FFI connector: an id this client has no case for is a type a loaded
+        // extension introduced, not a reason to fail the query.
+        return array_values(array_map(
+            static fn(int $id): DataType => DataType::tryFrom($id) ?? DataType::Unknown,
+            $ids,
+        ));
     }
 
     public function rowCount(Handle $result): int

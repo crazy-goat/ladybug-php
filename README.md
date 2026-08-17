@@ -313,25 +313,32 @@ Two things worth knowing:
   (`'[1.000000,0.000000,0.000000]'`). Use `cast(d.emb AS FLOAT[])` for a PHP array of floats.
   Search itself is unaffected — the index reads the column, not your process.
 - **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use.
-- **`INSTALL` segfaults when a second C++ runtime is loaded first.** liblbug 0.19.1's Linux
-  build carries its own statically linked libstdc++ without hiding those symbols. If the system
-  libstdc++ is already in the process when liblbug initialises, `INSTALL` dies inside
-  `std::codecvt` — a segfault, not an exception, so there is nothing to catch.
+- **`INSTALL` segfaults in some processes** with liblbug 0.19.1 — a segfault, not an exception,
+  so there is nothing to catch. The trigger is reliable; the mechanism is not established.
 
-  Any PHP extension that links libstdc++ is enough to cause it; `intl` alone does. `make
-  docker-repro-install` shows both sides: the same image, liblbug and script exit 0 without
-  `intl` and 139 with it. A pure C program doing the same `INSTALL`
-  ([`tools/repro-install-crash.c`](tools/repro-install-crash.c)) never crashes, having only one
-  C++ runtime — which is what makes this liblbug's packaging rather than anything on the PHP
-  side.
+  What is measured, all on Linux with the same liblbug and the same script:
 
-  Load order is what decides it: libstdc++ arriving *after* liblbug is harmless, which is why
-  `LOAD json` — whose extension links it too — does not break a later `INSTALL`.
+  | | |
+  |---|---|
+  | PHP with `intl` loaded | crashes on the first `INSTALL` (exit 139) |
+  | PHP without `intl` | succeeds |
+  | pure C, liblbug linked normally | succeeds |
+  | pure C, libstdc++ or the whole ICU chain preloaded, with and without `RTLD_DEEPBIND` | succeeds |
+  | `LOAD json` (which itself pulls libstdc++ in), then another `INSTALL` | succeeds |
 
-  If your process loads libstdc++ at startup, install extensions out of band (a separate
-  process, or a pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a normal
-  exception when the extension is missing. The tests detect the hazardous order and skip;
-  `LADYBUG_TEST_EXTENSIONS=1` overrides.
+  `make docker-repro-install` shows the first two rows on demand. The C attempts are
+  [`tools/repro-install-crash.c`](tools/repro-install-crash.c) and
+  [`tools/repro-install-crash-dlopen.c`](tools/repro-install-crash-dlopen.c) — kept precisely
+  because they *do not* crash: a core dump puts the fault inside liblbug's own bundled C++
+  runtime (`std::codecvt<char16_t, char, …>::do_unshift`, a dozen liblbug worker threads live),
+  yet reproducing that outside PHP by loading a second libstdc++ first — the obvious
+  explanation — does not work. So it is not plain symbol interposition, and anything more
+  specific would be a guess.
+
+  Practically: if `php -m` lists `intl` (or anything else linking libstdc++), install
+  extensions out of band — a separate process, or a pre-populated `~/.lbdb` — and use `LOAD`
+  only, which fails with a normal exception when the extension is missing. The tests detect
+  that condition and skip; `LADYBUG_TEST_EXTENSIONS=1` overrides.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 

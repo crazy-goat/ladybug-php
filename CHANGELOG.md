@@ -15,17 +15,19 @@ Supports liblbug 0.19.x.
 
 ### Changed
 
-- The `INSTALL` crash is now understood, and the guard checks the actual condition instead of
-  the environment. liblbug 0.19.1's Linux build bundles libstdc++ without hiding its symbols;
-  if the system libstdc++ is loaded before liblbug initialises — `intl` alone does it — the
-  first `INSTALL` segfaults inside `std::codecvt`. Arriving later is harmless, which is why
-  `LOAD json` does not break a subsequent `INSTALL`. `tools/repro-install-crash.c` is a pure C
-  reproducer that does *not* crash, which places the fault in liblbug's packaging rather than
-  anywhere on the PHP side, and `make docker-repro-install` demonstrates both outcomes on
-  demand.
+- The `INSTALL` crash now has a reliable trigger and an honest write-up. In a PHP process with
+  `intl` loaded the first `INSTALL` exits 139; without `intl`, on the same image and liblbug, it
+  succeeds — `make docker-repro-install` shows both. The guard checks that condition instead of
+  guessing from the platform or a CI flag.
 
-  Two earlier descriptions of this were wrong and are corrected: it is not Linux as such, and
-  not GitHub's runners as such.
+  The mechanism is *not* established, and the README says so. Two pure C reproducers are kept
+  in `tools/` precisely because they do not crash: neither linking libstdc++, nor preloading it
+  or the whole ICU chain, nor `RTLD_DEEPBIND`, reproduces it outside PHP — so the obvious
+  explanation (a second C++ runtime interposing on liblbug's bundled one) does not hold, even
+  though a core dump places the fault inside that runtime.
+
+  Three earlier descriptions of this were wrong and are corrected: it is not Linux as such, not
+  GitHub's runners as such, and not demonstrably symbol interposition.
 - The Linux test image installs PHPUnit as a phar and nothing else. Pulling the full dev set
   fetched some fifty packages from codeload, which answers HTTP 429 often enough to break the
   build for no reason.

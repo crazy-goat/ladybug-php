@@ -142,21 +142,19 @@ final class ExtensionTest extends IntegrationTestCase
      * `INSTALL` segfaults with liblbug 0.19.1 when a second C++ runtime is present in the
      * process, and a segfault cannot be caught — so the only safe response is to check first.
      *
-     * liblbug's Linux build carries its own statically linked libstdc++ without hiding those
-     * symbols, and what decides the outcome is load order:
+     * The trigger is the system libstdc++ being in the process at startup — PHP with `intl`
+     * loaded crashes on the first `INSTALL`, the same image without `intl` does not, and
+     * `make docker-repro-install` shows both. That correlation has held in every case observed,
+     * so it is what this guard tests.
      *
-     * - system libstdc++ already in the process when liblbug initialises — e.g. PHP started
-     *   with `intl`, which links it — and the first `INSTALL` dies inside `std::codecvt`
-     * - libstdc++ arriving later, which is what `LOAD json` itself does, is harmless: a second
-     *   `INSTALL` after it still succeeds
+     * The mechanism behind it is not established, and this comment will not pretend otherwise:
+     * two pure C reproducers in tools/ fail to crash even when a second libstdc++ or the whole
+     * ICU chain is loaded first, with and without RTLD_DEEPBIND, although a core dump puts the
+     * fault inside liblbug's own bundled C++ runtime. See the README table.
      *
-     * Reproducible on demand rather than taken on trust: the same image, liblbug and script
-     * exit 0 without `intl` and 139 with it — `make docker-repro-install`. A pure C program
-     * doing the same `INSTALL` never crashes, having only one C++ runtime, which is why this is
-     * liblbug's packaging and not something this client does.
-     *
-     * Hence the check is memoised: it has to answer for the process as it started, not as the
-     * suite has since changed it. LADYBUG_TEST_EXTENSIONS=1 overrides.
+     * The check is memoised because it has to answer for the process as it started: `LOAD json`
+     * pulls libstdc++ in itself, and that later arrival is demonstrably harmless.
+     * LADYBUG_TEST_EXTENSIONS=1 overrides.
      */
     private function load(string $name): void
     {

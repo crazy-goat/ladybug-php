@@ -287,11 +287,21 @@ Two things worth knowing:
   Search itself is unaffected — the index reads the column, not your process.
 - **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use.
 - **`INSTALL` can crash the process** with liblbug 0.19.1 — a segfault, not an exception, so
-  there is nothing to catch. Seen on GitHub Actions' Linux runners for all three extensions
-  and through both connectors, while ordinary queries on the same connection keep working. It
-  is not simply "Linux": `make docker-test` installs them cleanly on Debian, x86_64 and arm64
-  alike, and every network failure mode tried there — no network, refused proxy, dead DNS —
-  gives a normal exception. The cause is unidentified.
+  there is nothing to catch. What is known about it:
+
+  | | |
+  |---|---|
+  | GitHub Actions Linux runners, x86_64 and arm64 | crashes, all three extensions, both connectors |
+  | Debian container (`make docker-test`), x86_64 and arm64 | installs cleanly |
+  | the same container **on** a crashing runner | installs cleanly |
+  | under `gdb` | does not crash |
+  | no network, refused proxy, dead DNS | normal exception, no crash |
+
+  So it is neither the architecture nor the machine, and not a failed download: the container
+  clears the runner's kernel and CPU, leaving the host userland. A core dump puts the fault in
+  liblbug's own statically linked C++ runtime — `std::codecvt<char16_t, char, …>::do_unshift`
+  — with a dozen liblbug worker threads live, and it vanishes under a debugger. That reads
+  like a load-order or race problem inside liblbug rather than anything this client does.
 
   If your environment is affected, install extensions out of band (a separate process, or a
   pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a normal exception when the

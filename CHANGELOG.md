@@ -30,8 +30,10 @@ Supports liblbug 0.19.x.
   and casting to a list. `INSTALL` segfaults on GitHub Actions' Linux runners with liblbug
   0.19.1 — all three extensions, both connectors — so these tests skip on Linux CI rather than
   crashing the suite; `LADYBUG_TEST_EXTENSIONS=1` overrides. It is specific to that environment,
-  not to Linux: a Debian container installs them cleanly on both architectures, and every
-  network failure mode tried there produces a normal exception.
+  not to Linux or to an architecture: a Debian container installs them cleanly on x86_64 and
+  arm64, including when run on a crashing runner, and every network failure mode tried produces
+  a normal exception. A core dump places the fault in liblbug's own statically linked C++
+  runtime, and it does not reproduce under a debugger.
 - `RECURSIVE_REL` values are returned as `Ladybug\Type\Path` instead of liblbug's text
   rendering. A path is a STRUCT of two lists and liblbug's struct accessors do read it — the
   members are the same `Node` and `Rel` objects every other query produces. `Path` exposes

@@ -102,6 +102,49 @@ jobs:
   # after children — and functional tests pass right up until the corruption surfaces
   # somewhere else entirely. (A close-ordering bug once showed up as an 8 TB mmap failure in
   # an unrelated test.) So the whole integration suite also runs against a poisoned heap.
+  # Coverage is measured across both backends and merged, because a single run reports the
+  # other connector as dead code — neither number on its own describes the library.
+  coverage:
+    name: coverage (php 8.3)
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_MIN: '80'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: ffi, bcmath
+          ini-values: ffi.enable=1
+          coverage: pcov
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Fetch liblbug
+        run: bash tools/fetch-liblbug.sh "$LIBLBUG_VERSION"
+
+      - name: Build the native extension
+        run: make ext
+
+      - name: Unit tests
+        run: vendor/bin/phpunit --testsuite unit --coverage-clover build/clover-unit.xml
+
+      - name: Integration tests — FFI connector
+        run: LADYBUG_CONNECTOR=ffi vendor/bin/phpunit --testsuite integration --coverage-clover build/clover-ffi.xml
+
+      - name: Integration tests — native extension
+        run: |
+          LADYBUG_CONNECTOR=ext php -d extension="$PWD/ext/modules/ladybug.so" \
+            vendor/bin/phpunit --testsuite integration --coverage-clover build/clover-ext.xml
+
+      # Fails if a report has no <file> elements, so a missing coverage driver cannot pass
+      # as "0% but above the floor".
+      - name: Merge and check
+        run: php tools/coverage-gate.php "$COVERAGE_MIN" build/clover-unit.xml build/clover-ffi.xml build/clover-ext.xml
+
   #
   # macOS, not Linux, and not by preference: on Linux PHP dlopens every extension with
   # RTLD_DEEPBIND, which the sanitizer runtime refuses to run alongside — including the

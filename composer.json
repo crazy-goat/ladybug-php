@@ -18,7 +18,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Ladybug\\Tests\\": "tests/"
+            "Ladybug\\Tests\\": "tests/",
+            "Ladybug\\Tools\\": "tools/"
         }
     },
     "config": {

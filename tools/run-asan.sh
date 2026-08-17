@@ -83,6 +83,10 @@ if php -m 2>/dev/null | grep -qi '^Zend OPcache$'; then
     echo "  RTLD_DEEPBIND dlopen; run with an opcache-free php (setup-php: ':opcache')." >&2
 fi
 
+# Lets the suite recognise it is running under a sanitizer. MemoryTest watches RSS, and ASAN
+# holds freed allocations in a quarantine on purpose, so its growth is expected here.
+export LADYBUG_SANITIZER=asan
+
 echo "run-asan: $RUNTIME"
 echo "run-asan: ASAN_OPTIONS=$ASAN_OPTIONS"
 

@@ -45,7 +45,13 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        $this->database->close();
+        // A subclass that skips before calling parent::setUp() never got a database, and
+        // tearDown still runs — reaching for the typed property there turns a skip into an
+        // error.
+        if (isset($this->database)) {
+            $this->database->close();
+        }
+
         $this->removeWorkDirectory();
     }
 

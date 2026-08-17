@@ -39,6 +39,13 @@ final class MemoryTest extends IntegrationTestCase
             self::markTestSkipped('Cannot read the resident set size on ' . PHP_OS_FAMILY . '.');
         }
 
+        // A sanitizer keeps freed allocations in a quarantine and adds redzones around live
+        // ones, so resident memory grows by design — measuring it there would report a leak
+        // on every run. Under a sanitizer, its own detect_leaks is the tool for this.
+        if (getenv('LADYBUG_SANITIZER') !== false) {
+            self::markTestSkipped('Resident memory is not a leak signal under ' . getenv('LADYBUG_SANITIZER') . '.');
+        }
+
         parent::setUp();
     }
 

@@ -11,6 +11,11 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-17
+
+Supports liblbug 0.19.x. Distribution: the package is on Packagist, the extension ships as a
+prebuilt binary for every supported runtime, and `pie install` works.
+
 ### Added
 
 - **Prebuilt extension binaries.** Every release now carries `ladybug.so` for PHP 8.2, 8.3, 8.4
@@ -33,7 +38,8 @@ requirement the package refuses to run without — see
   every artefact, and by `make docker-static` locally.
 - `make docker-static` and a `DOCKER_PLATFORM` variable on the Docker targets, so the same checks
   run on emulated x86_64 from an arm64 workstation.
-- **A PIE package**, `crazy-goat/ladybug-ext`. PIE requires an extension's Composer name to
+- **A PIE package**, [`crazy-goat/ladybug-ext`](https://packagist.org/packages/crazy-goat/ladybug-ext),
+  verified with `pie build` end to end. PIE requires an extension's Composer name to
   differ from any regular package's, "even if they have different `type` fields", and Packagist
   reads a `composer.json` only at a repository root — so the extension cannot be a PIE package
   from inside this repository however its files are arranged. It gets a generated mirror instead:
@@ -235,6 +241,7 @@ First release. Two backends behind one API, held to the same integration suite.
   static-linkage job.
 
 [Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.1...HEAD
+[0.4.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.0...v0.2.1

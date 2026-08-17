@@ -11,7 +11,10 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
-Supports liblbug 0.19.x.
+## [0.2.1] - 2026-08-17
+
+Supports liblbug 0.19.x. Memory-safety fixes — recommended over 0.2.0, where reading an
+`ARRAY` column corrupts the heap.
 
 ### Fixed
 
@@ -97,6 +100,7 @@ First release. Two backends behind one API, held to the same integration suite.
 - PHP 8.2-8.5 on Linux and macOS in CI, integration suite once per backend, plus a
   static-linkage job.
 
-[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/crazy-goat/ladybug-php/releases/tag/v0.1.0

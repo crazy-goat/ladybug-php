@@ -6,6 +6,7 @@ namespace Ladybug\Connector\Ffi;
 
 use FFI;
 use FFI\CData;
+use Ladybug\Exception\ConnectorException;
 use Ladybug\Exception\TypeException;
 use Ladybug\Type\DataType;
 use Ladybug\Type\InternalId;
@@ -21,7 +22,30 @@ use Ladybug\Type\Rel;
  */
 final class ValueReader
 {
+    private const OK = 0;
+
     public function __construct(private readonly \FFI $ffi) {}
+
+    /**
+     * Every liblbug getter reports success through lbug_state, and on failure it leaves the
+     * out parameter untouched. Ignoring that does not produce an error — it produces a
+     * plausible wrong value (a zeroed struct reads as an empty list) or, for the getters that
+     * yield an lbug_value, a garbage handle that segfaults when read.
+     *
+     * ARRAY columns are exactly this case: liblbug's list accessors reject them, and the
+     * unchecked version silently returned [].
+     *
+     * ConnectorException, not TypeException, to match what the extension's errors map to —
+     * the same failure has to be catchable the same way on both backends.
+     *
+     * @throws ConnectorException
+     */
+    private function checked(int $state, string $message): void
+    {
+        if ($state !== self::OK) {
+            throw new ConnectorException($message);
+        }
+    }
 
     /**
      * Allocates an owned C struct; FFI::new() is nullable and null must never reach liblbug.
@@ -67,8 +91,12 @@ final class ValueReader
             DataType::TimestampNs => $this->timestamp($value, 'lbug_value_get_timestamp_ns', 'lbug_timestamp_ns_t', 1_000_000_000),
             DataType::Interval => $this->interval($value),
             DataType::InternalId => $this->internalId($value),
-            DataType::List, DataType::Array => $this->list($value),
-            DataType::Struct, DataType::Union => $this->struct($value),
+            DataType::List => $this->list($value),
+            DataType::Struct => $this->struct($value),
+            // liblbug 0.19.1's list and struct accessors reject ARRAY and UNION values, so
+            // its own rendering is the only way to reach the contents through the C API. The
+            // value itself is intact — cast(col AS STRING) in Cypher gives the same text.
+            DataType::Array, DataType::Union => $this->toString($value),
             DataType::Map => $this->map($value),
             DataType::Node => $this->node($value),
             DataType::Rel => $this->rel($value),
@@ -97,7 +125,10 @@ final class ValueReader
     private function scalar(CData $value, string $getter, string $ctype): mixed
     {
         $out = $this->alloc($ctype);
-        $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($out)),
+            "Could not read a {$ctype} value from the result.",
+        );
 
         return $out->cdata;
     }
@@ -106,7 +137,10 @@ final class ValueReader
     private function unsigned64(CData $value): int|string
     {
         $out = $this->alloc('uint64_t');
-        $this->ffi->lbug_value_get_uint64(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->lbug_value_get_uint64(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read a UINT64 value from the result.',
+        );
         $raw = $out->cdata;
 
         return $raw < 0 ? \sprintf('%u', $raw) : $raw;
@@ -116,7 +150,10 @@ final class ValueReader
     private function int128(CData $value): string
     {
         $out = $this->alloc('lbug_int128_t');
-        $this->ffi->lbug_value_get_int128(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->lbug_value_get_int128(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read an INT128 value from the result.',
+        );
         /** @var numeric-string $low */
         $low = $out->low < 0 ? \sprintf('%u', $out->low) : (string) $out->low;
         /** @var numeric-string $high */
@@ -137,7 +174,10 @@ final class ValueReader
     private function string(CData $value, string $getter): string
     {
         $out = $this->alloc('char*');
-        $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read a string value from the result.',
+        );
         try {
             return \FFI::string($out);
         } finally {
@@ -149,7 +189,10 @@ final class ValueReader
     {
         $out = $this->alloc('uint8_t*');
         $len = $this->alloc('uint64_t');
-        $this->ffi->lbug_value_get_blob(\FFI::addr($value), \FFI::addr($out), \FFI::addr($len));
+        $this->checked(
+            $this->ffi->lbug_value_get_blob(\FFI::addr($value), \FFI::addr($out), \FFI::addr($len)),
+            'Could not read a BLOB value from the result.',
+        );
         try {
             return \FFI::string($out, $len->cdata);
         } finally {
@@ -172,7 +215,10 @@ final class ValueReader
     private function date(CData $value): \DateTimeImmutable
     {
         $out = $this->alloc('lbug_date_t');
-        $this->ffi->lbug_value_get_date(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->lbug_value_get_date(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read a DATE value from the result.',
+        );
 
         return (new \DateTimeImmutable('1970-01-01 00:00:00', new \DateTimeZone('UTC')))
             ->modify(\sprintf('%+d days', $out->days));
@@ -186,7 +232,10 @@ final class ValueReader
     private function timestamp(CData $value, string $getter, string $ctype, int $perSecond): \DateTimeImmutable
     {
         $out = $this->alloc($ctype);
-        $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read a timestamp value from the result.',
+        );
         $raw = $out->value;
 
         $seconds = intdiv($raw, $perSecond);
@@ -213,7 +262,10 @@ final class ValueReader
     private function interval(CData $value): \DateInterval
     {
         $out = $this->alloc('lbug_interval_t');
-        $this->ffi->lbug_value_get_interval(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->lbug_value_get_interval(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read an INTERVAL value from the result.',
+        );
 
         $interval = new \DateInterval('PT0S');
         $interval->y = intdiv($out->months, 12);
@@ -239,7 +291,10 @@ final class ValueReader
     private function readInternalId(CData $value): array
     {
         $out = $this->alloc('lbug_internal_id_t');
-        $this->ffi->lbug_value_get_internal_id(\FFI::addr($value), \FFI::addr($out));
+        $this->checked(
+            $this->ffi->lbug_value_get_internal_id(\FFI::addr($value), \FFI::addr($out)),
+            'Could not read an INTERNAL_ID value from the result.',
+        );
 
         return ['tableId' => $out->table_id, 'offset' => $out->offset];
     }
@@ -250,12 +305,18 @@ final class ValueReader
     private function list(CData $value): array
     {
         $size = $this->alloc('uint64_t');
-        $this->ffi->lbug_value_get_list_size(\FFI::addr($value), \FFI::addr($size));
+        $this->checked(
+            $this->ffi->lbug_value_get_list_size(\FFI::addr($value), \FFI::addr($size)),
+            'Could not read the size of a LIST value.',
+        );
 
         $items = [];
         for ($i = 0; $i < $size->cdata; ++$i) {
             $element = $this->alloc('lbug_value');
-            $this->ffi->lbug_value_get_list_element(\FFI::addr($value), $i, \FFI::addr($element));
+            $this->checked(
+                $this->ffi->lbug_value_get_list_element(\FFI::addr($value), $i, \FFI::addr($element)),
+                "Could not read element {$i} of a LIST value.",
+            );
             try {
                 $items[] = $this->read($element);
             } finally {
@@ -270,12 +331,18 @@ final class ValueReader
     private function struct(CData $value): array
     {
         $count = $this->alloc('uint64_t');
-        $this->ffi->lbug_value_get_struct_num_fields(\FFI::addr($value), \FFI::addr($count));
+        $this->checked(
+            $this->ffi->lbug_value_get_struct_num_fields(\FFI::addr($value), \FFI::addr($count)),
+            'Could not read the field count of a STRUCT value.',
+        );
 
         $fields = [];
         for ($i = 0; $i < $count->cdata; ++$i) {
             $name = $this->alloc('char*');
-            $this->ffi->lbug_value_get_struct_field_name(\FFI::addr($value), $i, \FFI::addr($name));
+            $this->checked(
+                $this->ffi->lbug_value_get_struct_field_name(\FFI::addr($value), $i, \FFI::addr($name)),
+                "Could not read field name {$i} of a STRUCT value.",
+            );
             try {
                 $key = \FFI::string($name);
             } finally {
@@ -283,7 +350,10 @@ final class ValueReader
             }
 
             $field = $this->alloc('lbug_value');
-            $this->ffi->lbug_value_get_struct_field_value(\FFI::addr($value), $i, \FFI::addr($field));
+            $this->checked(
+                $this->ffi->lbug_value_get_struct_field_value(\FFI::addr($value), $i, \FFI::addr($field)),
+                "Could not read field {$i} of a STRUCT value.",
+            );
             try {
                 $fields[$key] = $this->read($field);
             } finally {
@@ -303,13 +373,19 @@ final class ValueReader
     private function map(CData $value): array
     {
         $size = $this->alloc('uint64_t');
-        $this->ffi->lbug_value_get_map_size(\FFI::addr($value), \FFI::addr($size));
+        $this->checked(
+            $this->ffi->lbug_value_get_map_size(\FFI::addr($value), \FFI::addr($size)),
+            'Could not read the size of a MAP value.',
+        );
 
         $pairs = [];
         $usableKeys = true;
         for ($i = 0; $i < $size->cdata; ++$i) {
             $keyValue = $this->alloc('lbug_value');
-            $this->ffi->lbug_value_get_map_key(\FFI::addr($value), $i, \FFI::addr($keyValue));
+            $this->checked(
+                $this->ffi->lbug_value_get_map_key(\FFI::addr($value), $i, \FFI::addr($keyValue)),
+                "Could not read key {$i} of a MAP value.",
+            );
             try {
                 $key = $this->read($keyValue);
             } finally {
@@ -317,7 +393,10 @@ final class ValueReader
             }
 
             $entryValue = $this->alloc('lbug_value');
-            $this->ffi->lbug_value_get_map_value(\FFI::addr($value), $i, \FFI::addr($entryValue));
+            $this->checked(
+                $this->ffi->lbug_value_get_map_value(\FFI::addr($value), $i, \FFI::addr($entryValue)),
+                "Could not read value {$i} of a MAP value.",
+            );
             try {
                 $entry = $this->read($entryValue);
             } finally {
@@ -382,7 +461,10 @@ final class ValueReader
     private function labelOf(CData $value, string $getter): string
     {
         $label = $this->alloc('lbug_value');
-        $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($label));
+        $this->checked(
+            $this->ffi->{$getter}(\FFI::addr($value), \FFI::addr($label)),
+            'Could not read the label of a graph value.',
+        );
         try {
             return (string) $this->read($label);
         } finally {
@@ -394,12 +476,18 @@ final class ValueReader
     private function properties(CData $value, string $sizeGetter, string $nameGetter, string $valueGetter): array
     {
         $count = $this->alloc('uint64_t');
-        $this->ffi->{$sizeGetter}(\FFI::addr($value), \FFI::addr($count));
+        $this->checked(
+            $this->ffi->{$sizeGetter}(\FFI::addr($value), \FFI::addr($count)),
+            'Could not read the property count of a graph value.',
+        );
 
         $properties = [];
         for ($i = 0; $i < $count->cdata; ++$i) {
             $name = $this->alloc('char*');
-            $this->ffi->{$nameGetter}(\FFI::addr($value), $i, \FFI::addr($name));
+            $this->checked(
+                $this->ffi->{$nameGetter}(\FFI::addr($value), $i, \FFI::addr($name)),
+                "Could not read property name {$i} of a graph value.",
+            );
             try {
                 $key = \FFI::string($name);
             } finally {
@@ -407,7 +495,10 @@ final class ValueReader
             }
 
             $property = $this->alloc('lbug_value');
-            $this->ffi->{$valueGetter}(\FFI::addr($value), $i, \FFI::addr($property));
+            $this->checked(
+                $this->ffi->{$valueGetter}(\FFI::addr($value), $i, \FFI::addr($property)),
+                "Could not read property {$i} of a graph value.",
+            );
             try {
                 $properties[$key] = $this->read($property);
             } finally {

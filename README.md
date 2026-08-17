@@ -222,8 +222,9 @@ get a `#2`, `#3` suffix. Use `fetchNumeric()` when positions matter.
 | `DATE`, `TIMESTAMP`, `TIMESTAMP_SEC/MS/NS/TZ` | `DateTimeImmutable` in UTC |
 | `INTERVAL` | `DateInterval` |
 | `INTERNAL_ID` | `Ladybug\Type\InternalId` |
-| `LIST`, `ARRAY` | `list<mixed>` |
-| `STRUCT`, `UNION` | `array<string, mixed>` |
+| `LIST` | `list<mixed>` |
+| `STRUCT` | `array<string, mixed>` |
+| `ARRAY`, `UNION` | `string` (see below) |
 | `MAP` | associative array, or a list of `{key, value}` pairs when keys are not usable as PHP keys |
 | `NODE` | `Ladybug\Type\Node` |
 | `REL` | `Ladybug\Type\Rel` |
@@ -232,6 +233,20 @@ get a `#2`, `#3` suffix. Use `fetchNumeric()` when positions matter.
 
 `TIMESTAMP_NS` is truncated to microseconds, PHP's finest resolution — read it as
 `CAST(col AS STRING)` when the extra digits matter.
+
+**`ARRAY` and `UNION` arrive as text.** liblbug 0.19.1's C accessors reject them —
+`lbug_value_get_list_size()` fails outright on a fixed-size array — so both connectors fall
+back to liblbug's own rendering rather than throwing. The value is intact, just not
+decomposed:
+
+```php
+$connection->query('RETURN cast([1, 2, 3] AS INT64[3]) AS a')->fetchOne();   // '[1,2,3]'
+$connection->query('RETURN cast(cast([1, 2, 3] AS INT64[3]) AS INT64[]) AS l')->fetchOne();
+                                                                             // [1, 2, 3]
+```
+
+Cast to a `LIST` in Cypher when you want structure. This is a liblbug limitation, not a
+design choice — it will become a real mapping when the C API can read those types.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 
@@ -255,7 +270,7 @@ composer ci            # style, static analysis, refactor check, tests
 
 | | |
 |---|---|
-| `composer test` | full suite (218 tests) |
+| `composer test` | full suite (222 tests) |
 | `composer test:unit` | no database needed |
 | `composer test:ffi` | integration suite against FFI |
 | `composer test:ext` | the same suite against the native extension |

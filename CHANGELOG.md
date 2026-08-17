@@ -11,6 +11,27 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+Supports liblbug 0.19.x.
+
+### Fixed
+
+- **Heap corruption when a value failed to convert.** Three error paths in the extension freed
+  `return_value` without resetting it, so the engine freed the array a second time. It
+  surfaced as `zend_mm_heap corrupted`, with no indication of where it came from. Reading an
+  `ARRAY` column triggered it.
+- **`ValueReader` ignored every `lbug_state`.** liblbug leaves the out parameter untouched on
+  failure, so an unchecked getter returned a plausible wrong value — a zeroed struct reads as
+  an empty list — or, for getters that yield an `lbug_value`, a garbage handle that segfaulted
+  when read. All 21 calls are now checked, with the same messages the extension uses. The
+  extension had always checked them; this was a straight divergence between the two backends.
+
+### Changed
+
+- `ARRAY` and `UNION` values now arrive as liblbug's own rendering (`'[1,2,3]'`) instead of an
+  empty array or a crash. liblbug 0.19.1's list and struct accessors reject both types; the
+  values themselves are intact, so falling back to text keeps them reachable. Cast to a `LIST`
+  in Cypher for structure.
+
 ## [0.2.0] - 2026-08-17
 
 Supports liblbug 0.19.x. No API changes: this release is about knowing the existing code is

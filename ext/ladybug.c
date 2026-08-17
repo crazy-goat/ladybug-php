@@ -801,6 +801,7 @@ ZEND_FUNCTION(ladybug_result_column_types)
 
         if (lbug_query_result_get_column_data_type(&object->result, index, &type) != LbugSuccess) {
             zval_ptr_dtor(return_value);
+            ZVAL_UNDEF(return_value);
             ladybug_throw(ladybug_exception_ce, "Could not read the type of column %" PRIu64 ".", index);
             RETURN_THROWS();
         }
@@ -858,13 +859,17 @@ ZEND_FUNCTION(ladybug_result_fetch)
         if (lbug_flat_tuple_get_value(&tuple, index, &value) != LbugSuccess) {
             lbug_flat_tuple_destroy(&tuple);
             zval_ptr_dtor(return_value);
+            ZVAL_UNDEF(return_value);
             ladybug_throw(ladybug_query_error_ce, "Could not read column %" PRIu64 " of the current row.", index);
             RETURN_THROWS();
         }
         if (ladybug_value_to_zval(&value, &converted) != SUCCESS) {
             lbug_value_destroy(&value);
             lbug_flat_tuple_destroy(&tuple);
+            /* Without the reset, return_value still points at the array just freed and the
+             * engine frees it again — reported as "zend_mm_heap corrupted", far from here. */
             zval_ptr_dtor(return_value);
+            ZVAL_UNDEF(return_value);
             RETURN_THROWS();
         }
         lbug_value_destroy(&value);

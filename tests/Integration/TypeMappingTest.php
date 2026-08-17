@@ -213,6 +213,44 @@ final class TypeMappingTest extends IntegrationTestCase
         self::assertNotNull($path);
     }
 
+    public function testAFixedSizeArrayArrivesAsLiblbugsOwnRendering(): void
+    {
+        // liblbug 0.19.1's list accessors reject ARRAY: lbug_value_get_list_size() fails on a
+        // fixed-size array rather than returning its length. The value itself is intact, so
+        // both connectors fall back to liblbug's rendering instead of throwing — before this
+        // was handled, FFI silently returned [] and the extension corrupted the Zend heap.
+        $value = $this->connection->query('RETURN cast([1, 2, 3] AS INT64[3]) AS a')->fetchOne();
+
+        self::assertSame('[1,2,3]', $value);
+    }
+
+    public function testAnArrayColumnRoundTrips(): void
+    {
+        $this->connection->run('CREATE NODE TABLE Vec(id INT64, v INT64[3], PRIMARY KEY(id))');
+        $this->connection->run('CREATE (:Vec {id: 1, v: cast([4, 5, 6] AS INT64[3])})');
+
+        self::assertSame('[4,5,6]', $this->connection->query('MATCH (v:Vec) RETURN v.v')->fetchOne());
+    }
+
+    public function testCastingAnArrayToAListGivesStructure(): void
+    {
+        // The documented way to get a PHP array out of an ARRAY column: ask Cypher for a LIST,
+        // which liblbug's accessors do support.
+        $value = $this->connection->query('RETURN cast(cast([1, 2, 3] AS INT64[3]) AS INT64[]) AS l')->fetchOne();
+
+        self::assertSame([1, 2, 3], $value);
+    }
+
+    public function testAUnionArrivesAsLiblbugsOwnRendering(): void
+    {
+        // Same limitation on the struct side: lbug_value_get_struct_field_value() fails for
+        // the second field of a UNION. Reading it unchecked segfaulted on a garbage handle.
+        $this->connection->run('CREATE NODE TABLE U(id INT64, v UNION(a INT64, b STRING), PRIMARY KEY(id))');
+        $this->connection->run('CREATE (:U {id: 1, v: 42})');
+
+        self::assertSame('42', $this->connection->query('MATCH (u:U) RETURN u.v')->fetchOne());
+    }
+
     public function testColumnTypesAreReported(): void
     {
         $result = $this->connection->query('RETURN 1 AS i, 1.5 AS f, "s" AS s, true AS b, date("2026-01-01") AS d');

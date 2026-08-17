@@ -897,11 +897,17 @@ int ladybug_value_to_zval(lbug_value *value, zval *out)
             return ladybug_internal_id_to_zval(id, out);
         }
         case LBUG_LIST:
-        case LBUG_ARRAY:
             return ladybug_list_to_zval(value, out);
         case LBUG_STRUCT:
-        case LBUG_UNION:
             return ladybug_struct_to_zval(value, out);
+        /* liblbug 0.19.1's list and struct accessors reject ARRAY and UNION values —
+         * lbug_value_get_list_size() fails outright on a fixed-size ARRAY — so its own
+         * rendering is the only way to reach the contents through the C API. The value is
+         * intact: cast(col AS STRING) in Cypher gives the same text. Callers who want
+         * structure should cast to LIST or read the union member in Cypher instead. */
+        case LBUG_ARRAY:
+        case LBUG_UNION:
+            return ladybug_to_string_zval(value, out);
         case LBUG_MAP:
             return ladybug_map_to_zval(value, out);
         case LBUG_NODE:

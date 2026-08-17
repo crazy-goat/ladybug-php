@@ -184,6 +184,33 @@ $connection->interrupt();
 `query()` without parameters uses liblbug's direct path; with parameters it prepares and
 caches the statement, so a loop over bound values re-plans nothing.
 
+### Bulk loading
+
+`copyInto()` spools the rows to a temporary CSV and hands them to liblbug's own `COPY FROM`,
+which loads the whole batch in one go instead of planning a query per row:
+
+```php
+$connection->copyInto('Person', [
+    ['name' => 'Ada', 'age' => 36],
+    ['name' => 'Alan', 'age' => 41],
+]);                                        // → 2
+
+$connection->copyInto('Person', $rows, columns: ['name', 'age']);   // positional rows
+$connection->copyInto('Knows', [['Ada', 'Alan', 2001]]);            // REL: from, to, props
+```
+
+Rows may be associative (the first row's keys name the columns) or lists (the table's own
+order; for a REL table, the FROM and TO primary keys first). An `iterable` is enough — a
+generator never has to be materialised.
+
+Two limits come from liblbug's CSV reader rather than from choice:
+
+- **An empty string is refused.** liblbug reads an empty field as `NULL` and offers no
+  sentinel to separate the two, so copying `''` would silently store `NULL`. `copyInto()`
+  throws instead; pass `null` if that is what you mean, or insert that row with `CREATE`.
+- **Only scalars, `null` and `DateTimeInterface`.** Lists, structs and maps have no CSV
+  spelling; use `CREATE` with parameters for those.
+
 ### QueryResult
 
 Results stream — iterating pulls one row at a time, so a million-row query costs one row

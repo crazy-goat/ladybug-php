@@ -15,6 +15,16 @@ Supports liblbug 0.19.x.
 
 ### Added
 
+- `Connection::copyInto()`: bulk loading through liblbug's `COPY FROM`, spooling rows to a
+  temporary CSV. Takes associative or positional rows, any `iterable` (a generator is never
+  materialised), node and REL tables, and returns the count liblbug reports. Table and column
+  names are validated rather than escaped, since a Cypher identifier has no quoting form that
+  would make arbitrary input safe.
+
+  Two limits come from liblbug's CSV reader: an empty string is refused, because liblbug reads
+  an empty field as NULL with no sentinel to separate them and copying it would silently change
+  the value; and only scalars, null and `DateTimeInterface` are accepted. A serial read is
+  requested only when a value carries a newline, which liblbug's parallel reader rejects.
 - A Linux test environment: `make docker-test` runs the whole suite, both connectors, in a
   container (`DOCKER_PHP=8.4` picks a version). It COPYs the source rather than mounting it —
   a mount would leave Linux object files and a Linux `ladybug.so` in `ext/`, which share their

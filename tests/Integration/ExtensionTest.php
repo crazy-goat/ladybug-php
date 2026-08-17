@@ -103,6 +103,32 @@ final class ExtensionTest extends IntegrationTestCase
         );
     }
 
+    private static ?bool $secondCxxRuntime = null;
+
+    /**
+     * True when the system libstdc++ was already mapped into this process before liblbug got
+     * to initialise — the order that crashes. Memoised on the first call, which happens before
+     * any LadybugDB extension is loaded, so the answer describes the process's startup state
+     * and does not change as the suite loads extensions of its own.
+     *
+     * Linux only: macOS binds symbols per library, so the two runtimes cannot collide there.
+     */
+    private function hasSecondCxxRuntime(): bool
+    {
+        if (self::$secondCxxRuntime !== null) {
+            return self::$secondCxxRuntime;
+        }
+
+        if (PHP_OS_FAMILY !== 'Linux') {
+            return self::$secondCxxRuntime = false;
+        }
+
+        $maps = @file_get_contents('/proc/self/maps');
+
+        // Unreadable /proc means the hazard cannot be ruled out, and a crash is worse than a skip.
+        return self::$secondCxxRuntime = !\is_string($maps) || str_contains($maps, 'libstdc++');
+    }
+
     private function createDocumentsWithEmbeddings(): void
     {
         $this->connection->run('CREATE NODE TABLE Doc(id INT64, emb FLOAT[3], PRIMARY KEY(id))');
@@ -113,23 +139,32 @@ final class ExtensionTest extends IntegrationTestCase
     /**
      * Installs and loads an official extension, or skips.
      *
-     * `INSTALL` segfaults on GitHub Actions' Linux runners with liblbug 0.19.1 — all three
-     * extensions, both connectors, while ordinary queries on the same connection keep working.
-     * A segfault cannot be caught, so those runs have to not attempt it.
+     * `INSTALL` segfaults with liblbug 0.19.1 when a second C++ runtime is present in the
+     * process, and a segfault cannot be caught — so the only safe response is to check first.
      *
-     * It is specific to that environment rather than to Linux: in a Debian container it
-     * installs cleanly on x86_64 and arm64 alike, and every network failure mode tried there
-     * (no network, refused proxy, dead DNS) produces a normal exception instead of a crash. The
-     * cause is still unidentified, so the guard is by CI rather than by platform, and
-     * LADYBUG_TEST_EXTENSIONS=1 overrides it.
+     * liblbug's Linux build carries its own statically linked libstdc++ without hiding those
+     * symbols, and what decides the outcome is load order:
+     *
+     * - system libstdc++ already in the process when liblbug initialises — e.g. PHP started
+     *   with `intl`, which links it — and the first `INSTALL` dies inside `std::codecvt`
+     * - libstdc++ arriving later, which is what `LOAD json` itself does, is harmless: a second
+     *   `INSTALL` after it still succeeds
+     *
+     * Reproducible on demand rather than taken on trust: the same image, liblbug and script
+     * exit 0 without `intl` and 139 with it — `make docker-repro-install`. A pure C program
+     * doing the same `INSTALL` never crashes, having only one C++ runtime, which is why this is
+     * liblbug's packaging and not something this client does.
+     *
+     * Hence the check is memoised: it has to answer for the process as it started, not as the
+     * suite has since changed it. LADYBUG_TEST_EXTENSIONS=1 overrides.
      */
     private function load(string $name): void
     {
-        if (PHP_OS_FAMILY === 'Linux' && getenv('CI') !== false && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
+        if ($this->hasSecondCxxRuntime() && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
             self::markTestSkipped(
-                "INSTALL crashes the process on Linux CI runners with liblbug 0.19.1, so the {$name} "
-                . 'extension cannot be tested there. It works in a Linux container; set '
-                . 'LADYBUG_TEST_EXTENSIONS=1 to try anyway.',
+                "INSTALL crashes with liblbug 0.19.1 when the system libstdc++ is also loaded, so the "
+                . "{$name} extension cannot be tested in this process. Set LADYBUG_TEST_EXTENSIONS=1 to "
+                . 'try anyway.',
             );
         }
 

@@ -313,26 +313,24 @@ Two things worth knowing:
   (`'[1.000000,0.000000,0.000000]'`). Use `cast(d.emb AS FLOAT[])` for a PHP array of floats.
   Search itself is unaffected — the index reads the column, not your process.
 - **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use.
-- **`INSTALL` can crash the process** with liblbug 0.19.1 — a segfault, not an exception, so
-  there is nothing to catch. What is known about it:
+- **`INSTALL` segfaults when a second C++ runtime is loaded first.** liblbug 0.19.1's Linux
+  build carries its own statically linked libstdc++ without hiding those symbols. If the system
+  libstdc++ is already in the process when liblbug initialises, `INSTALL` dies inside
+  `std::codecvt` — a segfault, not an exception, so there is nothing to catch.
 
-  | | |
-  |---|---|
-  | GitHub Actions Linux runners, x86_64 and arm64 | crashes, all three extensions, both connectors |
-  | Debian container (`make docker-test`), x86_64 and arm64 | installs cleanly |
-  | the same container **on** a crashing runner | installs cleanly |
-  | under `gdb` | does not crash |
-  | no network, refused proxy, dead DNS | normal exception, no crash |
+  Any PHP extension that links libstdc++ is enough to cause it; `intl` alone does. `make
+  docker-repro-install` shows both sides: the same image, liblbug and script exit 0 without
+  `intl` and 139 with it. A pure C program doing the same `INSTALL`
+  ([`tools/repro-install-crash.c`](tools/repro-install-crash.c)) never crashes, having only one
+  C++ runtime — which is what makes this liblbug's packaging rather than anything on the PHP
+  side.
 
-  So it is neither the architecture nor the machine, and not a failed download: the container
-  clears the runner's kernel and CPU, leaving the host userland. A core dump puts the fault in
-  liblbug's own statically linked C++ runtime — `std::codecvt<char16_t, char, …>::do_unshift`
-  — with a dozen liblbug worker threads live, and it vanishes under a debugger. That reads
-  like a load-order or race problem inside liblbug rather than anything this client does.
+  Load order is what decides it: libstdc++ arriving *after* liblbug is harmless, which is why
+  `LOAD json` — whose extension links it too — does not break a later `INSTALL`.
 
-  If your environment is affected, install extensions out of band (a separate process, or a
-  pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a normal exception when the
-  extension is missing. These tests skip on Linux CI for this reason;
+  If your process loads libstdc++ at startup, install extensions out of band (a separate
+  process, or a pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a normal
+  exception when the extension is missing. The tests detect the hazardous order and skip;
   `LADYBUG_TEST_EXTENSIONS=1` overrides.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:

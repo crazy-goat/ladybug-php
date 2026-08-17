@@ -27,7 +27,7 @@ define with_mode
 fi
 endef
 
-.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell
+.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell docker-repro-install
 
 ext:
 	$(call with_mode,shared)
@@ -110,7 +110,25 @@ docker-test: docker-build
 docker-shell: docker-build
 	docker run --rm -it $(DOCKER_IMAGE) bash
 
-# gdb is in the image: `make docker-shell` then `gdb --args php …` for anything that only
-# misbehaves on Linux.
+# liblbug 0.19.1 segfaults on INSTALL when a second C++ runtime shares the process. This shows
+# it both ways round, so the claim can be rechecked against a future liblbug rather than taken
+# on trust: the same image and script exit 0 without intl and 139 with it.
+#
+# gdb is in the image too: `make docker-shell`, then `gdb --args php …`.
+docker-repro-install: docker-build
+	docker build --build-arg PHP_VERSION=$(DOCKER_PHP) --build-arg EXTRA_PHP_EXTS=intl \
+		-t $(DOCKER_IMAGE)-intl .
+	@printf '%s\n' '<?php' \
+		'require "/app/vendor/autoload.php";' \
+		'$$c = Ladybug\Database::inMemory(new Ladybug\Config(connector: "ffi"))->connect();' \
+		'$$c->run("INSTALL json");' \
+		'echo "no crash\n";' > $(CURDIR)/build/repro-install.php
+	@echo "--- without intl (one C++ runtime):"
+	@docker run --rm -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE) \
+		php /tmp/r.php; echo "    exit=$$?"
+	@echo "--- with intl (system libstdc++ also loaded):"
+	@docker run --rm -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE)-intl \
+		php /tmp/r.php; echo "    exit=$$? (139 = SIGSEGV)"
+
 ci:
 	composer ci

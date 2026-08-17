@@ -11,6 +11,25 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+Supports liblbug 0.19.x.
+
+### Changed
+
+- The `INSTALL` crash is now understood, and the guard checks the actual condition instead of
+  the environment. liblbug 0.19.1's Linux build bundles libstdc++ without hiding its symbols;
+  if the system libstdc++ is loaded before liblbug initialises — `intl` alone does it — the
+  first `INSTALL` segfaults inside `std::codecvt`. Arriving later is harmless, which is why
+  `LOAD json` does not break a subsequent `INSTALL`. `tools/repro-install-crash.c` is a pure C
+  reproducer that does *not* crash, which places the fault in liblbug's packaging rather than
+  anywhere on the PHP side, and `make docker-repro-install` demonstrates both outcomes on
+  demand.
+
+  Two earlier descriptions of this were wrong and are corrected: it is not Linux as such, and
+  not GitHub's runners as such.
+- The Linux test image installs PHPUnit as a phar and nothing else. Pulling the full dev set
+  fetched some fifty packages from codeload, which answers HTTP 429 often enough to break the
+  build for no reason.
+
 ## [0.3.0] - 2026-08-17
 
 Supports liblbug 0.19.x. Types and data: every LadybugDB type this client can read now has a

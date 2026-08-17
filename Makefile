@@ -20,7 +20,10 @@ ext:
 ext-static:
 	cd ext && phpize -q && ./configure --enable-ladybug --enable-ladybug-static --with-liblbug=$(LIBLBUG_DIR) >/dev/null && $(MAKE) -s
 
+# phpize does not always manage to place run-tests.php, so fall back to the copy that
+# ships with the PHP build.
 ext-test:
+	@test -f ext/run-tests.php || cp "$$($(PHP)-config --include-dir)/../../lib/php/build/run-tests.php" ext/run-tests.php
 	cd ext && TEST_PHP_EXECUTABLE=$$(which $(PHP)) $(PHP) run-tests.php -d extension=$(EXT_SO) tests/
 
 ext-clean:

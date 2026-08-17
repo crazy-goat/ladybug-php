@@ -1,0 +1,72 @@
+{
+    "name": "ladybug/ladybug-php",
+    "description": "PHP client for LadybugDB (embedded graph database) \u2014 native extension and FFI connectors behind one API",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2"
+    },
+    "suggest": {
+        "ext-ffi": "Enables the FFI connector (no compilation required)",
+        "ext-ladybug": "Enables the native connector (fastest)",
+        "ext-bcmath": "Lossless INT128 and DECIMAL handling"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ladybug\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ladybug\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {}
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.68",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5",
+        "rector/rector": "^2.0"
+    },
+    "keywords": [
+        "ladybug",
+        "ladybugdb",
+        "kuzu",
+        "graph",
+        "graph-database",
+        "cypher",
+        "ffi",
+        "extension"
+    ],
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration",
+        "test:ffi": "LADYBUG_CONNECTOR=ffi phpunit --testsuite integration",
+        "test:ext": "LADYBUG_CONNECTOR=ext php -d extension=$PWD/ext/modules/ladybug.so vendor/bin/phpunit --testsuite integration",
+        "stan": "phpstan analyse",
+        "rector": "rector process --dry-run",
+        "rector:fix": "rector process",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "ci": [
+            "@cs",
+            "@stan",
+            "@rector",
+            "@test"
+        ],
+        "test:both": [
+            "@test:ffi",
+            "@test:ext"
+        ]
+    },
+    "scripts-descriptions": {
+        "test:ffi": "Runs the integration suite against the FFI connector",
+        "test:ext": "Runs the same suite against the native extension",
+        "ci": "Everything CI runs: style, static analysis, refactor check, tests",
+        "test:both": "Runs the integration suite twice: once per backend"
+    }
+}

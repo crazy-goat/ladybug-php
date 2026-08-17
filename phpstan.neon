@@ -1,0 +1,25 @@
+parameters:
+    level: 8
+    phpVersion:
+        min: 80200
+        max: 80400
+    paths:
+        - src
+        - tests
+    # The native extension is usually absent on the analysing machine; these stubs
+    # describe its ABI so ExtConnector is still type-checked.
+    scanFiles:
+        - stubs/ladybug-ext.stub.php
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # Every liblbug call goes through FFI's magic __call/__get, which no amount of
+        # annotation can describe. The declarations in Cdef are checked against lbug.h by
+        # tests/Unit/Ffi/CdefMatchesHeaderTest.php instead.
+        -
+            message: '#Call to an undefined method FFI::#'
+            path: src/Connector/Ffi/*
+        # C struct fields are reached through FFI\CData's magic __get/__set. The field
+        # names come straight from the declarations in Cdef, which the header test verifies.
+        -
+            identifier: property.notFound
+            path: src/Connector/Ffi/*

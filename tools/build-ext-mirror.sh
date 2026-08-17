@@ -127,6 +127,10 @@ trap 'rm -rf "$work"' EXIT
 gh repo clone "$REPO" "$work/mirror" -- --quiet
 cd "$work/mirror"
 
+# Explicit, because the first run clones a repository with no commits at all: there the branch
+# is unborn and its name comes from whatever init.defaultBranch the workstation happens to have.
+git checkout -qB main
+
 # Everything except .git: the mirror is a snapshot, so a file dropped from ext/ has to disappear
 # here too rather than linger from the previous release.
 find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
@@ -141,7 +145,7 @@ else
 fi
 
 git tag -a "$tag" -m "ladybug-ext $tag, generated from ladybug-php $source_commit"
-git push -q origin HEAD
+git push -q origin main
 git push -q origin "$tag"
 
 echo "pushed $REPO $tag"

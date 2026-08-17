@@ -33,17 +33,24 @@ requirement the package refuses to run without — see
   every artefact, and by `make docker-static` locally.
 - `make docker-static` and a `DOCKER_PLATFORM` variable on the Docker targets, so the same checks
   run on emulated x86_64 from an arm64 workstation.
+- **A PIE package**, `crazy-goat/ladybug-ext`. PIE requires an extension's Composer name to
+  differ from any regular package's, "even if they have different `type` fields", and Packagist
+  reads a `composer.json` only at a repository root — so the extension cannot be a PIE package
+  from inside this repository however its files are arranged. It gets a generated mirror instead:
+  [`tools/build-ext-mirror.sh`](tools/build-ext-mirror.sh) assembles `ext/` into a standalone
+  package and overwrites the mirror with one commit per release, so `ext/` here stays the only
+  place the C sources are edited.
 
 ### Changed
 
 - **On Packagist**, so `composer require crazy-goat/ladybug-php` works without a `repositories`
-  entry. The README's install section is rewritten around the three ways to get a working
-  backend — FFI, a prebuilt binary, or a source build — with what each one costs.
-- No PIE package, and not for lack of trying: PIE requires an extension's Composer package name
-  to differ from any regular package's, "even if they have different `type` fields", so it needs
-  a repository of its own. It would also still compile from source against a liblbug the user has
-  to fetch first, which is the part the prebuilt binaries remove. Noted in the README rather than
-  left as a to-do that reads like an oversight.
+  entry. The README's install section is rewritten around the four ways to get a working
+  backend — FFI, a prebuilt binary, PIE, or a source build — with what each one costs.
+- `PHP_ARG_ENABLE([ladybug])` now defaults to yes. PIE runs `./configure` with no arguments at
+  all unless the installer names a declared option, and with the previous default of `no` that
+  configured a build of nothing and succeeded — `pie install` would have reported success and
+  installed no extension. Found by building the mirror the way PIE does rather than by reading
+  the manifest and hoping.
 - The extension reports its own version again: `PHP_LADYBUG_VERSION` had been `0.1.0` since the
   first commit, through three releases. It never mattered while the only way to get the
   extension was to build it yourself; it does now that binaries are handed out and a bug report

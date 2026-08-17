@@ -499,8 +499,6 @@ liblbug moved off the machine entirely.
 Not done yet:
 
 - Arrow and bulk-copy ingestion (`lbug_connection_create_arrow_table` and friends)
-- a PIE package: it needs a Composer package name distinct from the library's, so it needs
-  its own repository — the prebuilt binaries cover the same ground for now
 - user-defined functions (`create_function` in the Python client) and `AsyncConnection`
 - Windows: the FFI connector looks for `lbug_shared.dll` but nothing has been run there
 
@@ -566,6 +564,7 @@ another extension carrying libstdc++ is loaded.
 |---|---|---|---|
 | FFI | `ext-ffi` + liblbug on disk | baseline | yes, handled by the connector |
 | prebuilt binary | matching PHP version | fastest | yes, linked statically |
+| PIE | toolchain + liblbug on disk | fastest | with `--enable-ladybug-static` |
 | built from source | phpize, C toolchain, 80 MB archive | fastest | with `--enable-ladybug-static` |
 
 `ConnectorFactory` picks the extension when it is loaded and falls back to FFI otherwise, so
@@ -573,9 +572,20 @@ adding the extension to an existing install changes nothing but the throughput. 
 `connector: 'ffi'` in a process that has the extension loaded — that puts two copies of liblbug
 in one address space.
 
-`pie install` is not available: PIE requires an extension to have its own Composer package name,
-distinct from the library's, and therefore its own repository. The prebuilt binaries above cover
-the same ground without one.
+### PIE
+
+The extension is also published as its own PIE package, because PIE requires an extension's
+Composer name to differ from any regular package's and reads only a repository root — so
+[crazy-goat/ladybug-ext](https://github.com/crazy-goat/ladybug-ext) is generated from `ext/` on
+every release:
+
+```bash
+bash tools/fetch-liblbug.sh 0.19.1 --static
+pie install crazy-goat/ladybug-ext --enable-ladybug-static --with-liblbug="$PWD/lib"
+```
+
+It still compiles, so it needs the toolchain and liblbug on disk like option 3 — what it saves is
+knowing phpize, configure and where the INI goes. `make mirror-ext` builds that package here.
 
 ## Licence
 

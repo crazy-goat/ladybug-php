@@ -27,7 +27,7 @@ define with_mode
 fi
 endef
 
-.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell docker-repro-install docker-static
+.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell docker-repro-install docker-static mirror-ext
 
 ext:
 	$(call with_mode,shared)
@@ -73,7 +73,7 @@ test-ext:
 # The point of the two-backend design: identical assertions, both implementations.
 test-both: test-ffi test-ext
 
-# The integration suite under AddressSanitizer — the same 107 tests, so every C path the
+# The integration suite under AddressSanitizer — the same 144 tests, so every C path the
 # extension has is exercised with a poisoned heap.
 #
 # Only that suite: run-tests.php gives its children a clean environment, so neither the
@@ -91,6 +91,16 @@ test-asan:
 # Both backends in one process, so the comparison is not across runs or machines.
 bench:
 	$(PHP) -d extension=$(EXT_SO) benchmarks/benchmark.php $(BENCH_ARGS)
+
+# The PIE package, crazy-goat/ladybug-ext, assembled out of ext/. PIE requires an extension to
+# carry a Composer package name distinct from any regular package's, and Packagist only reads a
+# root composer.json, so it cannot live inside this repository — it is generated instead, one
+# overwriting commit per release. Without --push this only assembles into build/ext-mirror.
+#
+#   make mirror-ext                 assemble and check
+#   make mirror-ext PUSH=v0.4.0     publish that tag
+mirror-ext:
+	@bash tools/build-ext-mirror.sh $(if $(PUSH),--push $(PUSH),)
 
 # -- Linux, from a macOS workstation -------------------------------------------------------
 #

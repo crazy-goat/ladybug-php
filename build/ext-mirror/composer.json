@@ -1,0 +1,40 @@
+{
+    "name": "crazy-goat/ladybug-ext",
+    "description": "Native PHP extension for LadybugDB (embedded graph database) — the ext-ladybug backend of crazy-goat/ladybug-php",
+    "type": "php-ext",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2"
+    },
+    "suggest": {
+        "crazy-goat/ladybug-php": "The PHP API this extension backs; the extension alone exposes only ladybug_* functions"
+    },
+    "php-ext": {
+        "extension-name": "ladybug",
+        "os-families-exclude": [
+            "windows"
+        ],
+        "configure-options": [
+            {
+                "name": "with-liblbug",
+                "description": "Directory holding lbug.h and the liblbug library. Required unless liblbug is installed somewhere standard: the build searches /usr/local, /usr and /opt/homebrew.",
+                "needs-value": true
+            },
+            {
+                "name": "enable-ladybug-static",
+                "description": "Link liblbug.a into the extension instead of depending on the shared library. Needs a liblbug-static release. Strongly recommended on Linux: a dynamically linked liblbug 0.19.x crashes the process on INSTALL when any extension carrying libstdc++ is loaded.",
+                "needs-value": false
+            }
+        ]
+    },
+    "keywords": [
+        "ladybug",
+        "ladybugdb",
+        "kuzu",
+        "graph",
+        "graph-database",
+        "cypher",
+        "extension"
+    ],
+    "homepage": "https://github.com/crazy-goat/ladybug-php"
+}

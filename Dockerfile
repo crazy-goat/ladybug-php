@@ -15,6 +15,7 @@ ARG PHP_VERSION=8.3
 FROM php:${PHP_VERSION}-cli
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        binutils \
         ca-certificates \
         curl \
         gdb \
@@ -76,6 +77,18 @@ RUN composer dump-autoload --dev --no-interaction \
     && php -r '$m = require "vendor/composer/autoload_psr4.php"; exit(isset($m["Ladybug\\Tests\\"]) ? 0 : 1);'
 
 # Fetch liblbug for this container's architecture and build the extension against it.
-RUN bash tools/fetch-liblbug.sh 0.19.1 && make ext
+#
+# LIBLBUG_VARIANT=static links liblbug.a into the .so instead. That is how the released
+# binaries are built — a separate code path in config.m4, and the only linkage immune to the
+# INSTALL crash — so it has to be exercised on Linux rather than trusted. The shared library
+# is fetched as well, because the FFI connector still needs it and the same image runs both
+# halves of the suite.
+ARG LIBLBUG_VARIANT=shared
+RUN bash tools/fetch-liblbug.sh 0.19.1 \
+    && if [ "$LIBLBUG_VARIANT" = "static" ]; then \
+           bash tools/fetch-liblbug.sh 0.19.1 --static && make ext-static; \
+       else \
+           make ext; \
+       fi
 
 CMD ["make", "test-both"]

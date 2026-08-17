@@ -4,6 +4,7 @@
 # once, and produced "No rule to make target /Users/…/ladybug.c" inside the container.
 ext/*
 !ext/config.m4
+!ext/ladybug.map
 !ext/php_ladybug.h
 !ext/ladybug.c
 !ext/ladybug_value.c

@@ -1,0 +1,37 @@
+/*
+ * Linker version script for the statically linked build (see config.m4).
+ *
+ * A static link pulls liblbug's object files into our .so, and the linker re-exports every
+ * global symbol it takes — 2712 of them, including 130 STB_GNU_UNIQUE locale facet ids from
+ * libstdc++'s template instantiations. glibc binds unique symbols process-wide and ignores
+ * RTLD_DEEPBIND, so re-exporting those would make this extension the first half of exactly
+ * the crash it was built to avoid: the next library to load would bind its locale registry
+ * to our copy instead of the system libstdc++'s. tools/repro-install-crash-dlopen.c has the
+ * mechanism in full.
+ *
+ * Hiding everything is not an option either. LadybugDB's own extensions — json, fts, vector —
+ * are shared objects downloaded by `INSTALL` and dlopened by liblbug, and they resolve 91
+ * `lbug::` C++ symbols from whoever loaded liblbug. With no exports, `LOAD json` fails with
+ * "undefined symbol: _ZTIN4lbug8function17TableFuncBindDataE".
+ *
+ * So the split is by owner rather than by language: everything belonging to liblbug stays
+ * visible, everything belonging to the C++ standard library does not. `*4lbug*` is a glob over
+ * mangled names and catches the C++ API, its typeinfo, vtables and thunks, plus the std::
+ * containers instantiated over liblbug's own types (std::_Hashtable<lbug::common::int128_t…>)
+ * — those describe liblbug state and its extensions have to share them. What it excludes is
+ * the part with no liblbug type in it, which is where the locale facets live.
+ *
+ * Measured on Debian arm64, liblbug 0.19.1: 281 -> 35 std:: exports, 23 -> 6 unique, and the
+ * six that remain are liblbug's own statics (StringUtils::asciiToLowerCaseMap and friends).
+ *
+ * Linux only. macOS uses a two-level namespace, where a library's symbols are not offered to
+ * the rest of the process at all, so the hazard does not exist and no filtering is needed.
+ */
+{
+  global:
+    get_module;
+    lbug_*;
+    *4lbug*;
+  local:
+    *;
+};

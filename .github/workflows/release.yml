@@ -1,0 +1,165 @@
+name: Release
+
+# Builds the native extension for every supported runtime and attaches the binaries to the
+# release. Compiling this extension needs phpize, a C toolchain and an 80 MB liblbug archive;
+# doing that on a production host to get a graph client is a poor trade, so the binaries are
+# built here instead.
+#
+# Every one of them is linked against liblbug.a. That is not a size preference — it is the only
+# linkage immune to the INSTALL crash of v0.3.1, where a dynamically linked liblbug bound
+# alongside a system libstdc++ dies compiling a std::regex. A shared-linked binary would be
+# smaller and would segfault on any host with intl loaded.
+#
+# ci.yml already runs on tag pushes, so the correctness suites are not repeated here. What this
+# adds are the checks that only apply to a binary someone else will run: the export set, and the
+# extension working with no liblbug anywhere on the machine.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  LIBLBUG_VERSION: '0.19.1'
+  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
+
+jobs:
+  prebuild:
+    name: php ${{ matrix.php }} / ${{ matrix.target.platform }}
+    runs-on: ${{ matrix.target.os }}
+    strategy:
+      # One broken combination should not hide the other eleven; a partial set of binaries is
+      # still useful, and the missing one is obvious from the release assets.
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+        # A dimension rather than `include:` entries — an include that introduces only new keys
+        # is merged into every existing combination, so three of them would leave four builds
+        # all claiming to be the last platform in the list.
+        target:
+          - { os: ubuntu-latest, platform: linux-x86_64 }
+          - { os: ubuntu-24.04-arm, platform: linux-aarch64 }
+          - { os: macos-latest, platform: macos-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      # intl is here on purpose: it links the system libstdc++, which is what turns the INSTALL
+      # crash from a theoretical hazard into a segfault. Building and testing without it would
+      # verify the binary under conditions no real host has.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: ffi, bcmath, intl
+          ini-values: ffi.enable=1
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      # Both variants: the static archive is what gets linked in, and the shared library is what
+      # the FFI half of the suite needs — verify-static-so.sh runs both connectors.
+      - name: Fetch liblbug
+        run: |
+          bash tools/fetch-liblbug.sh "$LIBLBUG_VERSION" --static
+          bash tools/fetch-liblbug.sh "$LIBLBUG_VERSION"
+
+      - name: Build with --enable-ladybug-static
+        run: make ext-static
+
+      - name: Verify the binary
+        run: bash tools/verify-static-so.sh
+        env:
+          # The crash guard in ExtensionTest skips INSTALL when it detects the hazardous
+          # conditions. Here those conditions are the point: this build is supposed to survive.
+          LADYBUG_TEST_EXTENSIONS: '1'
+
+      # Everything above ran in a checkout with liblbug sitting in lib/. A user's host has
+      # neither, and a binary that quietly depends on the build tree fails on the first machine
+      # it reaches — so the last check is the extension loading and querying with the library
+      # moved out of the way entirely.
+      - name: Clean-room check — no liblbug on the machine
+        shell: bash
+        run: |
+          cat > /tmp/clean-room.php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+
+          printf("ladybug %s, liblbug %s\n", phpversion('ladybug'), ladybug_version());
+
+          $connection = Ladybug\Database::inMemory(new Ladybug\Config(connector: 'ext'))->connect();
+          $connection->run('CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))');
+          $connection->run('CREATE (:T {id: 42})');
+
+          exit($connection->query('MATCH (t:T) RETURN t.id')->fetchOne() === 42 ? 0 : 1);
+          PHP
+          # `|| status=$?` rather than a bare call: steps run under `bash -e`, and a failure
+          # would abort the step with liblbug still moved out of the way.
+          status=0
+          mv lib lib-hidden
+          php -d extension="$PWD/ext/modules/ladybug.so" /tmp/clean-room.php || status=$?
+          mv lib-hidden lib
+          exit $status
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = "tag" ] || version="dev-${GITHUB_SHA:0:7}"
+          name="ladybug-${version}-php${{ matrix.php }}-${{ matrix.platform }}"
+
+          mkdir -p "dist/$name"
+          cp ext/modules/ladybug.so "dist/$name/"
+          cp LICENSE "dist/$name/"
+          sed -e "s/@NAME@/$name/g" -e "s/@PHP@/${{ matrix.php }}/g" \
+              -e "s/@PLATFORM@/${{ matrix.platform }}/g" -e "s/@LIBLBUG@/$LIBLBUG_VERSION/g" \
+              tools/prebuilt-README.txt > "dist/$name/README.txt"
+          tar czf "dist/$name.tar.gz" -C dist "$name"
+
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          ls -lh "dist/$name.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: attach to the release
+    needs: prebuild
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # One checksum file for the whole set, so a download can be verified without trusting the
+      # transport. Sorted, because the natural order here is whatever the runners finished in.
+      - name: Checksums
+        working-directory: dist
+        run: |
+          ls -1 *.tar.gz | sort | xargs sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      # The release is normally created by hand with its notes; this only adds the binaries. If
+      # the tag was pushed without one, a bare release is created so the assets have a home
+      # rather than the job failing after twelve successful builds.
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS --clobber

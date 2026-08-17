@@ -27,7 +27,7 @@ define with_mode
 fi
 endef
 
-.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell docker-repro-install
+.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell docker-repro-install docker-static
 
 ext:
 	$(call with_mode,shared)
@@ -101,34 +101,67 @@ bench:
 DOCKER_IMAGE ?= ladybug-php-test
 DOCKER_PHP   ?= 8.3
 
+# Everything about the INSTALL crash — and the static linkage that avoids it — was first
+# measured on arm64, because that is what an Apple laptop emulates for free. The released
+# binaries target x86_64 as well, so both architectures have to be checked before shipping:
+#
+#   make docker-static DOCKER_PLATFORM=linux/amd64
+#
+# Emulated x86_64 is slow (minutes, not seconds) but faithful enough for a loader question.
+DOCKER_PLATFORM ?=
+docker_platform_arg = $(if $(DOCKER_PLATFORM),--platform $(DOCKER_PLATFORM),)
+docker_tag_suffix   = $(if $(DOCKER_PLATFORM),-$(subst /,-,$(DOCKER_PLATFORM)),)
+
 docker-build:
-	docker build --build-arg PHP_VERSION=$(DOCKER_PHP) -t $(DOCKER_IMAGE) .
+	docker build $(docker_platform_arg) --build-arg PHP_VERSION=$(DOCKER_PHP) \
+		-t $(DOCKER_IMAGE)$(docker_tag_suffix) .
 
 docker-test: docker-build
-	docker run --rm $(DOCKER_IMAGE)
+	docker run --rm $(docker_platform_arg) $(DOCKER_IMAGE)$(docker_tag_suffix)
 
 docker-shell: docker-build
-	docker run --rm -it $(DOCKER_IMAGE) bash
+	docker run --rm -it $(docker_platform_arg) $(DOCKER_IMAGE)$(docker_tag_suffix) bash
 
-# liblbug 0.19.1 segfaults on INSTALL when a second C++ runtime shares the process. This shows
-# it both ways round, so the claim can be rechecked against a future liblbug rather than taken
-# on trust: the same image and script exit 0 without intl and 139 with it.
+# What a released binary has to satisfy, checked in the environment that broke: intl loaded
+# (so the system libstdc++ is in the process), liblbug linked statically, and the extension
+# exporting nothing of its bundled C++ runtime. The first two are the crash conditions; the
+# third is what keeps us from handing the same hazard to the next library loaded.
+#
+# LADYBUG_TEST_EXTENSIONS=1 removes the skip guard, so INSTALL really runs here.
+docker-static:
+	docker build $(docker_platform_arg) --build-arg PHP_VERSION=$(DOCKER_PHP) \
+		--build-arg EXTRA_PHP_EXTS=intl --build-arg LIBLBUG_VARIANT=static \
+		-t $(DOCKER_IMAGE)-static$(docker_tag_suffix) .
+	@docker run --rm $(docker_platform_arg) -e LADYBUG_TEST_EXTENSIONS=1 \
+		$(DOCKER_IMAGE)-static$(docker_tag_suffix) bash tools/verify-static-so.sh
+
+# liblbug 0.19.1 segfaults on INSTALL when a second C++ runtime shares the process, and since
+# v0.3.1 the FFI connector defuses it by loading liblbug before ext/ffi can. Both facts have to
+# be visible at once, or this target reads as "there is no bug": the middle row is the crash,
+# and the third is the fix holding. LADYBUG_NO_PRELOAD=1 switches the fix off.
+#
+# Verified on arm64 and, through emulation, on x86_64 — 0 / 139 / 0 on both.
+#
+#   make docker-repro-install DOCKER_PLATFORM=linux/amd64
 #
 # gdb is in the image too: `make docker-shell`, then `gdb --args php …`.
 docker-repro-install: docker-build
-	docker build --build-arg PHP_VERSION=$(DOCKER_PHP) --build-arg EXTRA_PHP_EXTS=intl \
-		-t $(DOCKER_IMAGE)-intl .
+	docker build $(docker_platform_arg) --build-arg PHP_VERSION=$(DOCKER_PHP) \
+		--build-arg EXTRA_PHP_EXTS=intl -t $(DOCKER_IMAGE)-intl$(docker_tag_suffix) .
 	@printf '%s\n' '<?php' \
 		'require "/app/vendor/autoload.php";' \
 		'$$c = Ladybug\Database::inMemory(new Ladybug\Config(connector: "ffi"))->connect();' \
 		'$$c->run("INSTALL json");' \
 		'echo "no crash\n";' > $(CURDIR)/build/repro-install.php
-	@echo "--- without intl (one C++ runtime):"
-	@docker run --rm -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE) \
+	@echo "--- without intl (one C++ runtime): expect 0"
+	@docker run --rm $(docker_platform_arg) -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE)$(docker_tag_suffix) \
 		php /tmp/r.php; echo "    exit=$$?"
-	@echo "--- with intl (system libstdc++ also loaded):"
-	@docker run --rm -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE)-intl \
-		php /tmp/r.php; echo "    exit=$$? (139 = SIGSEGV)"
+	@echo "--- with intl, connector fix disabled: expect 139 (SIGSEGV)"
+	@docker run --rm $(docker_platform_arg) -e LADYBUG_NO_PRELOAD=1 -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro \
+		$(DOCKER_IMAGE)-intl$(docker_tag_suffix) php /tmp/r.php; echo "    exit=$$?"
+	@echo "--- with intl, connector fix active: expect 0"
+	@docker run --rm $(docker_platform_arg) -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE)-intl$(docker_tag_suffix) \
+		php /tmp/r.php; echo "    exit=$$?"
 
 ci:
 	composer ci

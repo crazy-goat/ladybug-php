@@ -22,7 +22,13 @@
 #include "lbug.h"
 
 #define PHP_LADYBUG_NAME    "ladybug"
-#define PHP_LADYBUG_VERSION "0.1.0"
+
+/* What phpversion('ladybug') and phpinfo() report, so it has to track the package. It sat at
+ * 0.1.0 through three releases without anyone noticing, which did not matter while the only
+ * way to get the extension was to build it from the checkout in front of you — it matters now
+ * that binaries are distributed and a bug report starts with a version number.
+ * Ladybug\Tests\Unit\ExtensionVersionTest keeps it from falling behind the changelog again. */
+#define PHP_LADYBUG_VERSION "0.4.0"
 
 /* Bumped on any incompatible change to the ladybug_* function set. ExtConnector refuses
  * to run against a mismatch rather than crashing on a changed signature. */

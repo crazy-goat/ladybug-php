@@ -91,6 +91,22 @@ Searched: $LBUG_SEARCH_DIRS])
       *)
         LDFLAGS="$LDFLAGS -lstdc++"
         AC_MSG_RESULT([libstdc++])
+
+        dnl A static link re-exports every global symbol taken out of the archive, including
+        dnl the STB_GNU_UNIQUE locale facet ids that glibc binds process-wide no matter what
+        dnl RTLD_DEEPBIND says — which would make this extension the first half of the crash
+        dnl it exists to avoid. ladybug.map keeps liblbug's own symbols visible (its
+        dnl downloaded extensions resolve against them) and hides the rest; the file explains
+        dnl the split. --exclude-libs,ALL is the blunter alternative and breaks `LOAD json`.
+        AC_MSG_CHECKING([whether the linker accepts a version script])
+        LADYBUG_VERSION_SCRIPT=`cd "$srcdir" && pwd`/ladybug.map
+        ladybug_saved_ldflags="$LDFLAGS"
+        LDFLAGS="-Wl,--version-script=$LADYBUG_VERSION_SCRIPT"
+        AC_LINK_IFELSE([AC_LANG_PROGRAM([[]], [[]])],
+          [AC_MSG_RESULT([yes])
+           LDFLAGS="$ladybug_saved_ldflags -Wl,--version-script=$LADYBUG_VERSION_SCRIPT"],
+          [AC_MSG_RESULT([no; the extension will re-export liblbug's bundled C++ runtime])
+           LDFLAGS="$ladybug_saved_ldflags"])
         ;;
     esac
     AC_DEFINE([LADYBUG_STATIC_LIBLBUG], [1], [liblbug is linked statically])

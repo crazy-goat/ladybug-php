@@ -345,8 +345,10 @@ Two things worth knowing:
   | 0 | 1 | 0 |
   | 1 | 0 | 0 |
 
-  `make docker-repro-install` shows the same through PHP: the same image, liblbug and script
-  exit 0 without `intl` and 139 with it.
+  `make docker-repro-install` shows the same through PHP, in three rows: no `intl` exits 0,
+  `intl` with the connector's fix disabled exits 139, and `intl` with the fix active exits 0
+  again. Reproduced on arm64 and, under emulation, on x86_64 — the numbers are identical, so
+  this is not an architecture quirk.
 
   **The FFI connector handles this itself.** It loads liblbug through `dlopen` before
   `ext/ffi` can, with plain `RTLD_LAZY`; an already-loaded object keeps its original binding, so
@@ -365,10 +367,15 @@ Two things worth knowing:
   Failing both, `LD_PRELOAD=/path/to/liblbug.so php …` works for either connector.
   `maxThreads: 1` does *not* help; the dozen worker threads at the crash site are incidental.
 
-  The real fix belongs upstream: link the Linux release with `-Wl,--exclude-libs,ALL` (or a
-  version script exporting only `lbug_*`) and compile with `-fno-gnu-unique`. The macOS dylib
-  exports none of these symbols, so this is a Linux packaging difference rather than a design
-  choice.
+  The real fix belongs upstream, and it is narrower than "export less". `-Wl,--exclude-libs,ALL`
+  does stop the leak, and it also breaks `LOAD json`: LadybugDB's own extensions are downloaded
+  shared objects that resolve 91 `lbug::` C++ symbols from whoever loaded liblbug, so hiding
+  everything leaves them with undefined symbols. The line has to run between owners rather than
+  languages — keep `lbug_*` and anything mangled with a `lbug` type visible, hide the rest, and
+  compile with `-fno-gnu-unique`. [`ext/ladybug.map`](ext/ladybug.map) is that version script,
+  applied to our own static build, measured at 281 → 35 `std::` exports and 23 → 6
+  `STB_GNU_UNIQUE` with all three official extensions still loading. The macOS dylib exports
+  none of these symbols, so this is a Linux packaging difference rather than a design choice.
 
   The tests detect the hazardous combination and skip; `LADYBUG_TEST_EXTENSIONS=1` overrides.
 

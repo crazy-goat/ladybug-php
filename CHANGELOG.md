@@ -11,6 +11,42 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+### Added
+
+- **Prebuilt extension binaries.** Every release now carries `ladybug.so` for PHP 8.2, 8.3, 8.4
+  and 8.5 on `linux-x86_64`, `linux-aarch64` and `macos-arm64`, plus `SHA256SUMS`. Compiling the
+  extension needs phpize, a C toolchain and an 80 MB liblbug archive; none of that belongs on a
+  host that just wants a graph client.
+- Each binary links liblbug statically, which is a correctness requirement rather than a
+  packaging preference — it is the only linkage immune to the `INSTALL` crash fixed in 0.3.1 —
+  and needs no liblbug on the target machine at all. A clean-room step in the release workflow
+  moves `lib/` out of the way and queries through the extension to prove it.
+- [`ext/ladybug.map`](ext/ladybug.map), a linker version script for the static build. Linking
+  the archive re-exported 281 `std::` symbols and 23 `STB_GNU_UNIQUE` locale facet ids, which
+  would have made this extension the first half of the very crash it avoids. Hiding everything
+  was not the answer either: LadybugDB's downloaded extensions resolve 91 `lbug::` symbols from
+  us, and `LOAD json` failed with an undefined symbol until the split was drawn by owner instead
+  of by language.
+- [`tools/verify-static-so.sh`](tools/verify-static-so.sh): the acceptance checks a distributed
+  binary has to pass — no liblbug dependency, no stray libstdc++ exports, liblbug's own symbols
+  still visible, and `INSTALL`/`LOAD` working with `intl` loaded. Run by the release workflow on
+  every artefact, and by `make docker-static` locally.
+- `make docker-static` and a `DOCKER_PLATFORM` variable on the Docker targets, so the same checks
+  run on emulated x86_64 from an arm64 workstation.
+
+### Changed
+
+- The extension reports its own version again: `PHP_LADYBUG_VERSION` had been `0.1.0` since the
+  first commit, through three releases. It never mattered while the only way to get the
+  extension was to build it yourself; it does now that binaries are handed out and a bug report
+  starts with `phpversion('ladybug')`. A unit test keeps it from falling behind the changelog.
+- `make docker-repro-install` prints three rows instead of two. With 0.3.1's fix in place the old
+  two-row output was 0 and 0, which read as "there is no bug" — the crash only appears with
+  `LADYBUG_NO_PRELOAD=1`. Both the crash and the fix are now visible in one run, on arm64 and on
+  emulated x86_64.
+- The upstream suggestion in the README is narrower and now correct: `-Wl,--exclude-libs,ALL`
+  stops the symbol leak and breaks `LOAD json` with it.
+
 ## [0.3.1] - 2026-08-17
 
 Supports liblbug 0.19.x. Recommended for anyone running on Linux: without this, `INSTALL`

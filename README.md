@@ -1,5 +1,9 @@
 # ladybug-php
 
+[![CI](https://github.com/crazy-goat/ladybug-php/actions/workflows/ci.yml/badge.svg)](https://github.com/crazy-goat/ladybug-php/actions/workflows/ci.yml)
+[![PHP](https://img.shields.io/badge/php-8.2%20%7C%208.3%20%7C%208.4%20%7C%208.5-777bb4)](https://www.php.net/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 PHP client for [LadybugDB](https://github.com/LadybugDB/ladybug) — an embedded graph
 database (formerly Kuzu) with Cypher, vector indices and columnar storage.
 
@@ -289,16 +293,29 @@ a `DataType` case. Run it after any liblbug upgrade.
 
 Both connectors are complete and pass the same 107 integration tests: the FFI connector, the
 native extension, the factory, the ergonomic layer, the type mapping above, transactions,
-prepared statements and multi-statement results. Verified on PHP 8.5 / macOS arm64 against
-liblbug 0.19.1, in both shared and static linkage.
+prepared statements and multi-statement results.
+
+CI covers **PHP 8.2, 8.3, 8.4 and 8.5 on Linux x86_64 and macOS arm64**, running the
+integration suite once per connector on each — plus a job that builds against the static
+archive and asserts the resulting `.so` carries no liblbug dependency. Against liblbug 0.19.1.
 
 Not done yet:
 
 - `RECURSIVE_REL` as a typed path object — it currently arrives as liblbug's own rendering
   rather than being dropped, in both backends
 - Arrow and bulk-copy ingestion (`lbug_connection_create_arrow_table` and friends)
-- a PIE / PECL package for the extension, and a CI matrix across PHP 8.2–8.5 and Linux
+- a PIE / PECL package for the extension, so `pie install` works without cloning
 - user-defined functions (`create_function` in the Python client) and `AsyncConnection`
+- Windows: the FFI connector looks for `lbug_shared.dll` but nothing has been run there
+
+## Installing
+
+```bash
+composer require ladybug/ladybug-php
+```
+
+The FFI connector then needs `liblbug` on the machine (see above); the native extension is
+optional and takes over automatically once loaded.
 
 ## Licence
 

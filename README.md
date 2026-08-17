@@ -482,7 +482,7 @@ not an error you can catch.
 
 ## Status
 
-Both connectors are complete and pass the same 107 integration tests: the FFI connector, the
+Both connectors are complete and pass the same 144 integration tests: the FFI connector, the
 native extension, the factory, the ergonomic layer, the type mapping above, transactions,
 prepared statements and multi-statement results.
 
@@ -490,27 +490,92 @@ CI covers **PHP 8.2, 8.3, 8.4 and 8.5 on Linux x86_64 and macOS arm64**, running
 integration suite once per connector on each — plus a job that builds against the static
 archive and asserts the resulting `.so` carries no liblbug dependency. Against liblbug 0.19.1.
 
+Releases carry a built extension for each of PHP 8.2–8.5 on `linux-x86_64`, `linux-aarch64` and
+`macos-arm64`. Every binary is verified before it is attached: the export set is checked against
+[`ext/ladybug.map`](ext/ladybug.map), both suites run with `intl` loaded — the condition that
+crashes a dynamically linked liblbug — and a clean-room step queries through the extension with
+liblbug moved off the machine entirely.
+
 Not done yet:
 
 - Arrow and bulk-copy ingestion (`lbug_connection_create_arrow_table` and friends)
-- a PIE / PECL package for the extension, so `pie install` works without cloning
+- a PIE package: it needs a Composer package name distinct from the library's, so it needs
+  its own repository — the prebuilt binaries cover the same ground for now
 - user-defined functions (`create_function` in the Python client) and `AsyncConnection`
 - Windows: the FFI connector looks for `lbug_shared.dll` but nothing has been run there
 
 ## Installing
 
-Not on Packagist yet, so install from the repository:
+The PHP side is one command:
 
 ```bash
-composer config repositories.ladybug vcs https://github.com/crazy-goat/ladybug-php
+composer require crazy-goat/ladybug-php
 ```
+
+That gives you the API and no way to talk to a database yet — both connectors need LadybugDB
+itself. There are three ways to supply it, and the library uses whichever it finds.
+
+### 1. FFI — nothing to compile
+
+Fetch the shared library and point the package at it:
 
 ```bash
-composer require crazy-goat/ladybug-php:dev-main
+bash vendor/crazy-goat/ladybug-php/tools/fetch-liblbug.sh 0.19.1
 ```
 
-The FFI connector then needs `liblbug` on the machine (see above); the native extension is
-optional and takes over automatically once loaded.
+That unpacks into the package's own `lib/`, which is where the connector looks first (see
+[Installing liblbug (FFI)](#installing-liblbug-ffi) for the manual route);
+`LADYBUG_LIBRARY=/path/to/liblbug.so` overrides it. Needs `ext-ffi` enabled, and `ffi.enable`
+must allow it (`preload` counts as off for CLI scripts). Slower than the extension — see the
+[benchmark](#choosing-a-backend) — because every value crosses the FFI boundary.
+
+### 2. Prebuilt extension binary — no toolchain, full speed
+
+Every [release](https://github.com/crazy-goat/ladybug-php/releases) carries `ladybug.so` for
+PHP 8.2–8.5 on `linux-x86_64`, `linux-aarch64` and `macos-arm64`:
+
+```bash
+V=0.4.0; PHP=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+curl -sLO "https://github.com/crazy-goat/ladybug-php/releases/download/v$V/ladybug-$V-php$PHP-linux-x86_64.tar.gz"
+tar xzf "ladybug-$V-php$PHP-linux-x86_64.tar.gz"
+cp "ladybug-$V-php$PHP-linux-x86_64/ladybug.so" "$(php-config --extension-dir)/"
+echo 'extension=ladybug.so' > "$(php-config --ini-dir)/99-ladybug.ini"
+```
+
+The PHP version has to match exactly — module ABIs differ between minors and PHP refuses the
+wrong one. `SHA256SUMS` is attached to the same release. liblbug is linked into these binaries,
+so nothing else is needed on the machine; they are ~20 MB for that reason, and because [only the
+static linkage avoids the `INSTALL` crash](#ladybugdb-extensions). Debug and ZTS builds are not
+covered — those need option 3.
+
+### 3. From source
+
+```bash
+git clone https://github.com/crazy-goat/ladybug-php && cd ladybug-php
+make liblbug && make ext                  # dynamic, ~90 KB
+bash tools/fetch-liblbug.sh 0.19.1 --static && make ext-static   # or self-contained
+```
+
+See [Building the native extension](#building-the-native-extension) for the configure options.
+On Linux prefer `ext-static`: a dynamically linked extension crashes on `INSTALL` whenever
+another extension carrying libstdc++ is loaded.
+
+### Which one
+
+|  | needs | speed | `INSTALL` safe on Linux |
+|---|---|---|---|
+| FFI | `ext-ffi` + liblbug on disk | baseline | yes, handled by the connector |
+| prebuilt binary | matching PHP version | fastest | yes, linked statically |
+| built from source | phpize, C toolchain, 80 MB archive | fastest | with `--enable-ladybug-static` |
+
+`ConnectorFactory` picks the extension when it is loaded and falls back to FFI otherwise, so
+adding the extension to an existing install changes nothing but the throughput. Do not force
+`connector: 'ffi'` in a process that has the extension loaded — that puts two copies of liblbug
+in one address space.
+
+`pie install` is not available: PIE requires an extension to have its own Composer package name,
+distinct from the library's, and therefore its own repository. The prebuilt binaries above cover
+the same ground without one.
 
 ## Licence
 

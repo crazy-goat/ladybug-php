@@ -36,6 +36,14 @@ requirement the package refuses to run without — see
 
 ### Changed
 
+- **On Packagist**, so `composer require crazy-goat/ladybug-php` works without a `repositories`
+  entry. The README's install section is rewritten around the three ways to get a working
+  backend — FFI, a prebuilt binary, or a source build — with what each one costs.
+- No PIE package, and not for lack of trying: PIE requires an extension's Composer package name
+  to differ from any regular package's, "even if they have different `type` fields", so it needs
+  a repository of its own. It would also still compile from source against a liblbug the user has
+  to fetch first, which is the part the prebuilt binaries remove. Noted in the README rather than
+  left as a to-do that reads like an oversight.
 - The extension reports its own version again: `PHP_LADYBUG_VERSION` had been `0.1.0` since the
   first commit, through three releases. It never mattered while the only way to get the
   extension was to build it yourself; it does now that binaries are handed out and a bug report

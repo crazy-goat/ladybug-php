@@ -28,7 +28,7 @@
  * way to get the extension was to build it from the checkout in front of you — it matters now
  * that binaries are distributed and a bug report starts with a version number.
  * Ladybug\Tests\Unit\ExtensionVersionTest keeps it from falling behind the changelog again. */
-#define PHP_LADYBUG_VERSION "0.4.0"
+#define PHP_LADYBUG_VERSION "0.5.0"
 
 /* Bumped on any incompatible change to the ladybug_* function set. ExtConnector refuses
  * to run against a mismatch rather than crashing on a changed signature. */

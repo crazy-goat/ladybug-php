@@ -11,6 +11,8 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-17
+
 Supports liblbug 0.19.x. The API freeze ahead of 1.0.0: what this package promises to keep is
 now written down, and enforced by a test rather than by good intentions.
 
@@ -277,7 +279,8 @@ First release. Two backends behind one API, held to the same integration suite.
 - PHP 8.2-8.5 on Linux and macOS in CI, integration suite once per backend, plus a
   static-linkage job.
 
-[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.1...v0.3.0

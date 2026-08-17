@@ -11,7 +11,10 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
-Supports liblbug 0.19.x.
+## [0.3.0] - 2026-08-17
+
+Supports liblbug 0.19.x. Types and data: every LadybugDB type this client can read now has a
+PHP shape, and there is a bulk path that does not plan a query per row.
 
 ### Added
 
@@ -139,7 +142,8 @@ First release. Two backends behind one API, held to the same integration suite.
 - PHP 8.2-8.5 on Linux and macOS in CI, integration suite once per backend, plus a
   static-linkage job.
 
-[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/crazy-goat/ladybug-php/releases/tag/v0.1.0

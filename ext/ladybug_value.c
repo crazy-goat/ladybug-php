@@ -60,7 +60,7 @@ static zend_class_entry *ladybug_lookup_class(zend_class_entry **cache, const ch
     if (*cache == NULL && !EG(exception)) {
         ladybug_throw(
             ladybug_exception_ce,
-            "Class %s is not available. Values of this type need the ladybug/ladybug-php "
+            "Class %s is not available. Values of this type need the crazy-goat/ladybug-php "
             "package (or its autoloader) to be loaded.",
             name
         );

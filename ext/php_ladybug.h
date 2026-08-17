@@ -2,7 +2,7 @@
  * ladybug — native PHP extension for LadybugDB.
  *
  * The extension exposes a flat procedural ABI (ladybug_*) over opaque handle objects and
- * knows nothing about the ladybug/ladybug-php Composer package: the PHP-side adapter
+ * knows nothing about the crazy-goat/ladybug-php Composer package: the PHP-side adapter
  * (Ladybug\Connector\Ext\ExtConnector) maps this ABI onto the library's own interfaces.
  * That keeps the two versionable apart, with LADYBUG_ABI_VERSION as the contract.
  *

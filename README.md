@@ -311,7 +311,7 @@ Not done yet:
 ## Installing
 
 ```bash
-composer require ladybug/ladybug-php
+composer require crazy-goat/ladybug-php
 ```
 
 The FFI connector then needs `liblbug` on the machine (see above); the native extension is

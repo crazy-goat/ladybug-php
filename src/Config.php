@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ladybug;
 
+use Ladybug\Exception\InvalidArgumentException;
+
 /**
  * Database-level settings, mapped onto `lbug_system_config`. Every field defaults to
  * null, meaning "leave whatever liblbug's own default is" — we only overwrite the
@@ -32,9 +34,23 @@ final readonly class Config
         return new self(readOnly: true);
     }
 
+    /**
+     * A copy with some fields replaced, by name: `$config->with(readOnly: true)`.
+     *
+     * The signature has to be an untyped variadic for named arguments to reach it, which means
+     * neither PHPStan nor the engine can check the names against the constructor. Unrecognised
+     * ones are therefore rejected here: left to `new self(...)`, a typo raises a bare `\Error`
+     * that escapes {@see \Ladybug\Exception\LadybugException}, and a positional argument raises
+     * a different `\Error` about overwriting an earlier one. Both are the same mistake and both
+     * deserve the same message.
+     *
+     * @param mixed ...$overrides keyed by constructor parameter name
+     *
+     * @throws InvalidArgumentException if a name is not a field of this class
+     */
     public function with(mixed ...$overrides): self
     {
-        return new self(...[...[
+        $current = [
             'bufferPoolSize' => $this->bufferPoolSize,
             'maxThreads' => $this->maxThreads,
             'compression' => $this->compression,
@@ -44,6 +60,29 @@ final readonly class Config
             'checkpointThreshold' => $this->checkpointThreshold,
             'connector' => $this->connector,
             'libraryPath' => $this->libraryPath,
-        ], ...$overrides]);
+        ];
+
+        foreach (array_keys($overrides) as $name) {
+            // array_key_exists, not isset: every field defaults to null, so isset() would reject
+            // each name that has not been set yet — which is most of them.
+            if (\is_string($name) && \array_key_exists($name, $current)) {
+                continue;
+            }
+
+            throw new InvalidArgumentException(\is_int($name)
+                ? \sprintf(
+                    'Config::with() takes named arguments only; argument %d was positional. '
+                    . 'Write with(%s: …).',
+                    $name + 1,
+                    array_keys($current)[$name] ?? 'name',
+                )
+                : \sprintf(
+                    'Config has no field "%s". Known fields: %s.',
+                    $name,
+                    implode(', ', array_keys($current)),
+                ));
+        }
+
+        return new self(...[...$current, ...$overrides]);
     }
 }

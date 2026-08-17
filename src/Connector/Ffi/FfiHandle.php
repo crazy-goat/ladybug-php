@@ -12,6 +12,8 @@ use Ladybug\Exception\ConnectorException;
  * Wraps an owned FFI struct. Holding the CData here is what keeps the memory alive:
  * once this object is collected, PHP frees the struct, so a handle must outlive every
  * C-side use of the pointer inside it.
+ *
+ * @internal produced and consumed by FfiConnector only
  */
 final class FfiHandle implements Handle
 {

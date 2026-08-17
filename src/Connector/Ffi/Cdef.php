@@ -11,6 +11,8 @@ use Ladybug\Connector\LibraryVersion;
  * C preprocessor at runtime. Keep in sync with the header shipped alongside liblbug.
  *
  * Verified against lbug.h from LadybugDB v0.19.1.
+ *
+ * @internal the declarations track liblbug's header, so they change whenever it does
  */
 final class Cdef
 {

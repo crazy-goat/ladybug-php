@@ -55,6 +55,13 @@ in-memory fake for tests, or a future remote connector — and the same selectio
 ConnectorFactory::register('fake', MyFakeConnector::class);
 ```
 
+One caveat, stated up front rather than discovered on an upgrade: **calling `Connector` is
+covered by this library's version guarantee, implementing it is not.** It carries one method per
+liblbug C call, and liblbug is itself pre-1.0, so methods will be added as the C API grows — in
+minor releases. Your own connector may stop satisfying the interface then; pin an exact version
+if that matters. The alternative was freezing a pre-1.0 database's C surface at our 1.0. The
+same applies to `Handle`, which is public only because those signatures need a type.
+
 ## Choosing a backend
 
 | | ext-ladybug | FFI |
@@ -480,6 +487,38 @@ Set `LADYBUG_ALLOW_ANY_LIBRARY=1` to downgrade the failure to a warning. That is
 a newer liblbug during development — in production a layout mismatch is memory corruption,
 not an error you can catch.
 
+### Which liblbug works with which release
+
+| ladybug-php | liblbug | notes |
+|---|---|---|
+| 0.5.x | 0.19.x | verified against 0.19.1 |
+| 0.4.x | 0.19.x | verified against 0.19.1 |
+| ≤ 0.3.x | 0.19.x | on Linux use the static link; see [LadybugDB extensions](#ladybugdb-extensions) |
+
+A liblbug **patch** release inside a supported series is accepted without a new ladybug-php
+release. A **minor** release is not: it needs `lib/` regenerated, `CdefMatchesHeaderTest` re-run
+and the constants bumped, which is a ladybug-php release of its own. So `0.20` will be refused
+by the version check until we ship support for it — deliberately, because the alternative is a
+struct read at the wrong offsets.
+
+This table is the whole compatibility story: liblbug is pre-1.0, we track one series at a time,
+and neither connector guesses.
+
+### Platforms
+
+| | ext-ladybug | FFI |
+|---|---|---|
+| Linux x86_64 | CI, prebuilt binary | CI |
+| Linux aarch64 | prebuilt binary | — |
+| macOS arm64 | CI, prebuilt binary | CI |
+| macOS x86_64 | should work, never run | should work, never run |
+| Windows | **not supported** | **not supported** |
+
+Windows is not a "not yet" — nothing has ever been run there. The FFI connector does look for
+`lbug_shared.dll`, so it may well work, but no test has ever executed on Windows and the PIE
+package excludes the platform outright (`os-families-exclude`). Reports are welcome; a passing
+CI job would be more welcome.
+
 ## Status
 
 Both connectors are complete and pass the same 144 integration tests: the FFI connector, the
@@ -500,7 +539,38 @@ Not done yet:
 
 - Arrow and bulk-copy ingestion (`lbug_connection_create_arrow_table` and friends)
 - user-defined functions (`create_function` in the Python client) and `AsyncConnection`
-- Windows: the FFI connector looks for `lbug_shared.dll` but nothing has been run there
+- Windows — see [Platforms](#platforms) for what that means exactly
+
+## What counts as public API
+
+From 1.0.0 this package follows SemVer, so it is worth being precise about what the promise
+covers. The authority is not this list but
+[`tests/Unit/ApiSurfaceTest`](tests/Unit/ApiSurfaceTest.php): every class under `src/` has to be
+classified there as public or internal, and a new one fails the suite until someone decides
+which it is. A class nobody classified is a class that became public by accident.
+
+Public: `Database`, `Connection`, `PreparedStatement`, `QueryResult`, `Config`, everything in
+`Ladybug\Type\` and `Ladybug\Exception\`, plus `ConnectorFactory`, `LibraryVersion`,
+`LibraryLocator`, `ExtConnector`, `FfiConnector` and the `Connector` / `Handle` interfaces.
+
+Internal, marked `@internal` and free to change in any release: `Cdef`, `ValueReader`,
+`ExtHandle`, `FfiHandle`, `CsvSpool`.
+
+Four details that are easy to get wrong:
+
+- **Implementing `Connector` or `Handle` is not covered**, though calling them is. The reasoning
+  is under [Layers](#layers).
+- **Exception classes are not `final`**, on purpose, so an application can narrow one further.
+  Everything else in `src/` is final and the test above enforces it.
+- **`QueryException::$parameters` holds the values that were bound**, which in production is real
+  data. `__toString()` prints the Cypher but never the parameters, so an uncaught exception or a
+  log line does not leak them — but `var_dump()` and anything that serialises the object will.
+- **`DataType`'s backing integers come from `lbug_data_type_id`.** They are an ABI, not ours to
+  renumber; compare cases, not numbers.
+
+The `ladybug_*` functions the extension registers are not API either. They are the ABI between
+the extension and `ExtConnector`, versioned by `ExtConnector::ABI_VERSION`; write against the
+PHP classes.
 
 ## Installing
 

@@ -20,6 +20,8 @@ use Ladybug\Type\Rel;
  * Every `lbug_value` obtained from a getter is owned by us and must be destroyed, which
  * is why the composite branches are written with try/finally: a throw halfway through a
  * nested list must not leak the elements already read.
+ *
+ * @internal FfiConnector's value-conversion half; the extension does the same work in C
  */
 final class ValueReader
 {

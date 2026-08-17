@@ -11,6 +11,43 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+Supports liblbug 0.19.x. The API freeze ahead of 1.0.0: what this package promises to keep is
+now written down, and enforced by a test rather than by good intentions.
+
+### Added
+
+- [`tests/Unit/ApiSurfaceTest`](tests/Unit/ApiSurfaceTest.php). Every class under `src/` has to be
+  listed there as public or internal, and a new one fails the suite until someone chooses. With
+  SemVer in force from 1.0.0, a class nobody classified is a class that went public by accident
+  and cannot be taken back. The same test asserts that everything except the exception classes is
+  `final`, and that no internal class is missing its `@internal`.
+- A **What counts as public API** section in the README, naming both lists and the details
+  that are easy to get wrong: the `Connector` caveat below, the non-final exceptions, the data
+  inside `QueryException`, and `DataType`'s backing integers being liblbug's ABI.
+- A **compatibility matrix** — which liblbug series each release accepts, and why a liblbug minor
+  release requires a release here — and a **platform table** stating that Windows is unsupported
+  rather than merely untested.
+- `tests/Unit/ConfigTest`, which had no unit coverage of its own.
+
+### Changed
+
+- `Config::with()` validates argument names. A typo used to reach `new self(...)` and raise a bare
+  `\Error` ("Unknown named parameter"), which no `catch (LadybugException)` would ever see; a
+  positional argument raised a different, more confusing `\Error` about overwriting an argument.
+  Both are now `InvalidArgumentException`, and the message lists the fields that do exist. The
+  signature has to stay `mixed ...$overrides` for named arguments to work, so PHPStan cannot see
+  these mistakes — the check is written by hand for that reason.
+- **Implementing `Connector` or `Handle` is explicitly outside the version guarantee**, while
+  calling them stays inside it. The interface is one method per liblbug C call and liblbug is
+  pre-1.0, so methods will be added in minor releases as the C API grows. Freezing it at our 1.0
+  would have meant a 2.0.0 for the first new C call worth exposing. Said in the interface
+  docblock and the README, not only here.
+- `Cdef`, `ValueReader`, `ExtHandle` and `FfiHandle` are marked `@internal`. `ExtHandle` and
+  `FfiHandle` already carried the annotation on individual methods but not on the class.
+- Documented why the exception classes are deliberately not `final`, and that
+  `QueryException::$parameters` carries the bound values — `__toString()` never prints them, but
+  anything that serialises the exception will.
+
 ## [0.4.0] - 2026-08-17
 
 Supports liblbug 0.19.x. Distribution: the package is on Packagist, the extension ships as a
@@ -240,7 +277,7 @@ First release. Two backends behind one API, held to the same integration suite.
 - PHP 8.2-8.5 on Linux and macOS in CI, integration suite once per backend, plus a
   static-linkage job.
 
-[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/crazy-goat/ladybug-php/compare/v0.4.0...HEAD
 [0.4.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/crazy-goat/ladybug-php/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/crazy-goat/ladybug-php/compare/v0.2.1...v0.3.0

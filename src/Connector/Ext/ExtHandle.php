@@ -11,6 +11,8 @@ use Ladybug\Exception\ConnectorException;
  * Wraps an opaque object handed out by the native extension. Unlike the FFI variant there
  * is no manual memory to pin: the extension's own object destructor frees the C resource
  * if we never close it explicitly.
+ *
+ * @internal produced and consumed by ExtConnector only
  */
 final class ExtHandle implements Handle
 {

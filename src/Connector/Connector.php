@@ -21,6 +21,19 @@ use Ladybug\Type\DataType;
  *  - Errors are exceptions, never return codes. `lbug_state != LbugSuccess` becomes a
  *    Ladybug\Exception\* throw, so the upper layers have no error handling of their own.
  *  - Every open() has a matching close(); double-close is a no-op, use-after-close throws.
+ *
+ * ## Backward compatibility
+ *
+ * Calling these methods, and passing a connector to {@see \Ladybug\Database}, is covered by
+ * this library's version guarantee. **Implementing this interface is not.** It is one method
+ * per liblbug C call and liblbug is itself pre-1.0, so methods will be added as the C API
+ * grows — in minor releases, not major ones. A third-party connector (a fake in a test suite,
+ * a backend of your own) can therefore stop satisfying the interface on a minor upgrade.
+ *
+ * The same applies to {@see Handle}, which exists only because these signatures need a type.
+ *
+ * If that trade is wrong for you, pin an exact version; the alternative was freezing the C
+ * surface of a pre-1.0 database at our own 1.0.
  */
 interface Connector
 {

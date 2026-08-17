@@ -12,6 +12,9 @@ namespace Ladybug\Connector;
  * defines its own implementation: the FFI connector wraps an \FFI\CData struct, the
  * native extension wraps a Zend object. A handle is only ever valid with the
  * connector that produced it.
+ *
+ * Implementing this is outside the version guarantee, for the reason given on
+ * {@see Connector} — it is public only because that interface's signatures need a type.
  */
 interface Handle
 {

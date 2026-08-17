@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ladybug\Connector\Ffi;
 
+use Ladybug\Connector\LibraryVersion;
+
 /**
  * The subset of lbug.h this connector needs, hand-transcribed so we don't depend on a
  * C preprocessor at runtime. Keep in sync with the header shipped alongside liblbug.
@@ -12,7 +14,8 @@ namespace Ladybug\Connector\Ffi;
  */
 final class Cdef
 {
-    public const LIBRARY_VERSION = '0.19.1';
+    /** @see LibraryVersion for the versions these declarations are valid for. */
+    public const LIBRARY_VERSION = LibraryVersion::VERIFIED;
 
     public static function source(): string
     {
@@ -156,6 +159,7 @@ final class Cdef
             void lbug_query_summary_destroy(lbug_query_summary* query_summary);
 
             char* lbug_get_version();
+            uint64_t lbug_get_storage_version();
             char* lbug_get_last_error();
 
             void lbug_destroy_string(char* str);

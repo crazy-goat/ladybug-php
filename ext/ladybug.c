@@ -988,9 +988,93 @@ static zend_class_entry *ladybug_register_handle_class(
     return registered;
 }
 
+/* -- liblbug compatibility ----------------------------------------------------------- */
+
+/* Copies the leading major.minor of a version string ("0.19.1" -> "0.19", "0.20.0-rc.1"
+ * -> "0.20"). Returns the length written, or 0 if there is no such prefix. */
+static size_t ladybug_version_series(const char *version, char *out, size_t out_size)
+{
+    size_t len = 0;
+    int dots = 0;
+    const char *p;
+
+    if (version == NULL) {
+        return 0;
+    }
+
+    for (p = version; *p != '\0' && len + 1 < out_size; ++p) {
+        if (*p == '.') {
+            if (++dots == 2) {
+                break;
+            }
+        } else if (*p < '0' || *p > '9') {
+            break;
+        }
+        out[len++] = *p;
+    }
+
+    out[len] = '\0';
+
+    return dots >= 1 ? len : 0;
+}
+
+static bool ladybug_liblbug_supported(const char *runtime)
+{
+    char series[16];
+    const char *list = LADYBUG_LIBLBUG_SERIES;
+    size_t len = ladybug_version_series(runtime, series, sizeof(series));
+
+    if (len == 0) {
+        return false;
+    }
+
+    while (*list != '\0') {
+        const char *comma = strchr(list, ',');
+        size_t n = comma != NULL ? (size_t) (comma - list) : strlen(list);
+
+        if (n == len && strncmp(list, series, n) == 0) {
+            return true;
+        }
+
+        if (comma == NULL) {
+            break;
+        }
+        list = comma + 1;
+    }
+
+    return false;
+}
+
+static bool ladybug_version_check_overridden(void)
+{
+    const char *value = getenv(LADYBUG_ALLOW_ANY_LIBRARY_ENV);
+
+    return value != NULL && value[0] != '\0' && strcmp(value, "0") != 0;
+}
+
 PHP_MINIT_FUNCTION(ladybug)
 {
     zend_class_entry ce;
+    const char *liblbug_version = lbug_get_version();
+
+    /* Before any class is registered: a layout mismatch is silent data corruption, so the
+     * only safe outcome is for the module not to load at all. */
+    if (!ladybug_liblbug_supported(liblbug_version)) {
+        bool overridden = ladybug_version_check_overridden();
+
+        zend_error(E_CORE_WARNING,
+            "ladybug: liblbug %s is not supported by this extension, which needs %s.x "
+            "(built against %s). liblbug changes struct layouts between minor releases, so "
+            "continuing would risk wrong results or a crash rather than an error. Rebuild "
+            "the extension against a supported liblbug, or set %s=1 to load anyway at your "
+            "own risk.",
+            liblbug_version != NULL ? liblbug_version : "(unreadable)",
+            LADYBUG_LIBLBUG_SERIES, LADYBUG_LIBLBUG_VERIFIED, LADYBUG_ALLOW_ANY_LIBRARY_ENV);
+
+        if (!overridden) {
+            return FAILURE;
+        }
+    }
 
     ladybug_database_ce = ladybug_register_handle_class(
         LADYBUG_DATABASE_CLASS, ladybug_database_create, ladybug_database_free, NULL,
@@ -1049,6 +1133,13 @@ PHP_MINFO_FUNCTION(ladybug)
     php_info_print_table_row(2, "extension version", PHP_LADYBUG_VERSION);
     php_info_print_table_row(2, "ABI version", "1");
     php_info_print_table_row(2, "liblbug version", lbug_get_version());
+    php_info_print_table_row(2, "liblbug built against", LADYBUG_LIBLBUG_VERIFIED);
+    php_info_print_table_row(2, "liblbug supported series", LADYBUG_LIBLBUG_SERIES ".x");
+    {
+        char storage[32];
+        snprintf(storage, sizeof(storage), "%llu", (unsigned long long) lbug_get_storage_version());
+        php_info_print_table_row(2, "liblbug storage version", storage);
+    }
 #ifdef LADYBUG_STATIC_LIBLBUG
     php_info_print_table_row(2, "liblbug linkage", "static");
 #else

@@ -36,3 +36,6 @@ tests/*.php
 tests/*.sh
 tests/*.mem
 *.dep
+
+# autoconf keeps a backup of anything it regenerates
+*~

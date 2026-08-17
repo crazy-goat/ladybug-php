@@ -10,6 +10,7 @@ use FFI\Exception;
 use Ladybug\Config;
 use Ladybug\Connector\Connector;
 use Ladybug\Connector\Handle;
+use Ladybug\Connector\LibraryVersion;
 use Ladybug\Exception\ConnectorException;
 use Ladybug\Exception\DatabaseException;
 use Ladybug\Exception\QueryException;
@@ -43,6 +44,10 @@ final readonly class FfiConnector implements Connector
 
         $this->ffi = $ffi;
         $this->reader = new ValueReader($ffi);
+
+        // Before anything that passes a struct across the boundary. lbug_get_version()
+        // only returns a string, so it is safe to call even against a mismatched library.
+        LibraryVersion::assertSupported($this->libraryVersion(), 'FFI');
     }
 
     public static function isAvailable(): bool
@@ -81,7 +86,9 @@ final readonly class FfiConnector implements Connector
 
     public function libraryVersion(): string
     {
-        return $this->takeString($this->ffi->lbug_get_version()) ?? Cdef::LIBRARY_VERSION;
+        // Deliberately not falling back to the version we were built against: reporting a
+        // version we did not actually read would defeat the compatibility check below.
+        return $this->takeString($this->ffi->lbug_get_version()) ?? '';
     }
 
     // -- database ---------------------------------------------------------------------

@@ -289,6 +289,32 @@ So `tests/Unit/Ffi/CdefMatchesHeaderTest` parses the shipped `lib/lbug.h` and co
 92 declarations against `Cdef`, and checks that every `lbug_data_type_id` in the header has
 a `DataType` case. Run it after any liblbug upgrade.
 
+That test runs at development time. Its runtime counterpart is the version check below.
+
+## liblbug version check
+
+Both connectors depend on liblbug's exact struct layout — `lbug_system_config` in
+particular, whose fields `Cdef` spells out one by one — and liblbug is pre-1.0, so a minor
+release may rearrange them. Nothing about that failure is loud: `lbug_database_init()` would
+read a config struct that means something else.
+
+So the runtime version is verified before the first call that passes a struct:
+
+| | check | on mismatch |
+|---|---|---|
+| FFI | `FfiConnector::__construct` | `IncompatibleLibraryException` |
+| extension | `MINIT` | module refuses to load |
+
+Supported releases are declared in
+[`LibraryVersion`](src/Connector/LibraryVersion.php) and in `ext/php_ladybug.h`;
+`tests/Unit/LibraryVersionParityTest` checks that those two, `tools/fetch-liblbug.sh` and
+the CI matrix all name the same version. Patch releases within a supported series are
+accepted, a new minor has to be verified by hand.
+
+Set `LADYBUG_ALLOW_ANY_LIBRARY=1` to downgrade the failure to a warning. That is for trying
+a newer liblbug during development — in production a layout mismatch is memory corruption,
+not an error you can catch.
+
 ## Status
 
 Both connectors are complete and pass the same 107 integration tests: the FFI connector, the
@@ -310,8 +336,14 @@ Not done yet:
 
 ## Installing
 
+Not on Packagist yet, so install from the repository:
+
 ```bash
-composer require crazy-goat/ladybug-php
+composer config repositories.ladybug vcs https://github.com/crazy-goat/ladybug-php
+```
+
+```bash
+composer require crazy-goat/ladybug-php:dev-main
 ```
 
 The FFI connector then needs `liblbug` on the machine (see above); the native extension is

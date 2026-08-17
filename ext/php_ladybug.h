@@ -28,6 +28,15 @@
  * to run against a mismatch rather than crashing on a changed signature. */
 #define LADYBUG_ABI_VERSION 1
 
+/* The liblbug releases the struct layouts compiled into this extension are valid for.
+ * Shared linkage means the library can be swapped after the build, and liblbug changes
+ * struct layouts between minor releases — so the runtime version is checked in MINIT and
+ * the module refuses to load on a mismatch. Comma-separated major.minor series; keep in
+ * sync with Ladybug\Connector\LibraryVersion (LibraryVersionParityTest compares them). */
+#define LADYBUG_LIBLBUG_VERIFIED      "0.19.1"
+#define LADYBUG_LIBLBUG_SERIES        "0.19"
+#define LADYBUG_ALLOW_ANY_LIBRARY_ENV "LADYBUG_ALLOW_ANY_LIBRARY"
+
 extern zend_module_entry ladybug_module_entry;
 #define phpext_ladybug_ptr &ladybug_module_entry
 

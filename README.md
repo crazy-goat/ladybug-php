@@ -255,7 +255,7 @@ composer ci            # style, static analysis, refactor check, tests
 
 | | |
 |---|---|
-| `composer test` | full suite (200 tests) |
+| `composer test` | full suite (218 tests) |
 | `composer test:unit` | no database needed |
 | `composer test:ffi` | integration suite against FFI |
 | `composer test:ext` | the same suite against the native extension |

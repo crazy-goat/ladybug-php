@@ -1,0 +1,45 @@
+name: Feature request
+description: Something the library should be able to do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md#scope) first — Windows
+        support, `AsyncConnection` and user-defined functions are deliberately out of scope,
+        with reasons.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The task, not the API. A concrete workload usually suggests a better shape than a
+        proposed method signature does.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What do you do today?
+      description: >
+        Most of liblbug is reachable through plain `query()`, so there is often a working
+        answer already — knowing it helps judge how much the ergonomic version is worth.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backends
+    attributes:
+      label: Which backends would need it?
+      description: >
+        Anything touching value conversion has to be implemented twice, in C and in PHP, and
+        held to the same tests. That is the main cost of a feature here.
+      options:
+        - both (anything to do with values or queries)
+        - FFI only
+        - native extension only
+        - not sure
+    validations:
+      required: true

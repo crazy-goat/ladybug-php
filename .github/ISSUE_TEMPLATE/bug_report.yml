@@ -1,0 +1,69 @@
+name: Bug report
+description: Something behaves differently than documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The two backends convert values with completely separate code — the extension in C,
+        the FFI connector in PHP — so most bugs exist in one and not the other. Knowing which
+        one halves the search.
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      options:
+        - ffi
+        - ext (native extension)
+        - both
+        - not sure
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: PHP, package and liblbug versions
+      description: >
+        `php -v`, the package version, and `$database->libraryVersion()`. For the extension,
+        `php --ri ladybug` reports all of it at once.
+      placeholder: PHP 8.3.14, ladybug-php 0.1.0, liblbug 0.19.1
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS and architecture
+      placeholder: Ubuntu 24.04 x86_64 / macOS 15 arm64
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproducing it
+      description: >
+        The shortest script that shows the problem, including the Cypher and the schema it
+        needs. `Database::inMemory()` is usually enough.
+      render: php
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+      description: For a wrong value, `var_dump()` of both is more useful than a description.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        Stack trace, `ConnectorFactory::diagnostics()` output, or whether the same code
+        behaves differently on the other backend (`LADYBUG_CONNECTOR=ffi` / `=ext`) — that
+        last one is the single most useful thing you can include.

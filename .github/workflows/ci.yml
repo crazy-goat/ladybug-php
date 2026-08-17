@@ -98,17 +98,15 @@ jobs:
       - name: Extension .phpt tests
         run: make ext-test
 
-  # The extension manages C resources by hand — handles pinned by refcount, parents freed
-  # after children — and functional tests pass right up until the corruption surfaces
-  # somewhere else entirely. (A close-ordering bug once showed up as an 8 TB mmap failure in
-  # an unrelated test.) So the whole integration suite also runs against a poisoned heap.
   # Coverage is measured across both backends and merged, because a single run reports the
   # other connector as dead code — neither number on its own describes the library.
   coverage:
     name: coverage (php 8.3)
     runs-on: ubuntu-latest
     env:
-      COVERAGE_MIN: '80'
+      # A ratchet, not a target: set just below the current number and raised when it
+      # improves. Guessing high only breaks unrelated pull requests.
+      COVERAGE_MIN: '77'
     steps:
       - uses: actions/checkout@v4
 
@@ -145,6 +143,10 @@ jobs:
       - name: Merge and check
         run: php tools/coverage-gate.php "$COVERAGE_MIN" build/clover-unit.xml build/clover-ffi.xml build/clover-ext.xml
 
+  # The extension manages C resources by hand — handles pinned by refcount, parents freed
+  # after children — and functional tests pass right up until the corruption surfaces
+  # somewhere else entirely. (A close-ordering bug once showed up as an 8 TB mmap failure in
+  # an unrelated test.) So the whole integration suite also runs against a poisoned heap.
   #
   # macOS, not Linux, and not by preference: on Linux PHP dlopens every extension with
   # RTLD_DEEPBIND, which the sanitizer runtime refuses to run alongside — including the

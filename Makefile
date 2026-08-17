@@ -6,6 +6,7 @@
 #   make ext-test         run the extension's own .phpt suite
 #   make test-asan        integration suite under AddressSanitizer (needs ext-asan)
 #   make bench            FFI vs the extension, both in one process
+#   make docker-test      the whole suite on Linux (DOCKER_PHP=8.4 to pick a version)
 #   make test             PHP suite on the default connector
 #   make test-both        PHP suite on FFI and on the extension
 
@@ -26,7 +27,7 @@ define with_mode
 fi
 endef
 
-.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci
+.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell
 
 ext:
 	$(call with_mode,shared)
@@ -91,5 +92,25 @@ test-asan:
 bench:
 	$(PHP) -d extension=$(EXT_SO) benchmarks/benchmark.php $(BENCH_ARGS)
 
+# -- Linux, from a macOS workstation -------------------------------------------------------
+#
+# The image COPYs the source instead of mounting it: a mount would leave Linux object files
+# and a Linux ladybug.so in ext/, which have the same names as the host's and would break
+# the next native build. Rebuild after editing — it is cached down to the COPY.
+
+DOCKER_IMAGE ?= ladybug-php-test
+DOCKER_PHP   ?= 8.3
+
+docker-build:
+	docker build --build-arg PHP_VERSION=$(DOCKER_PHP) -t $(DOCKER_IMAGE) .
+
+docker-test: docker-build
+	docker run --rm $(DOCKER_IMAGE)
+
+docker-shell: docker-build
+	docker run --rm -it $(DOCKER_IMAGE) bash
+
+# gdb is in the image: `make docker-shell` then `gdb --args php …` for anything that only
+# misbehaves on Linux.
 ci:
 	composer ci

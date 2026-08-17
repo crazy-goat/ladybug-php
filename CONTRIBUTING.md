@@ -42,6 +42,11 @@ These are not ceremony — each one exists because something went wrong without 
 | `tests/Integration/MemoryTest` | C resources that are never released. `memory_get_usage()` cannot see those. |
 | `make bench` | performance claims. The extension is 6x faster at fetching and 1.0x at writing; do not assume either. |
 
+On a macOS workstation, `make docker-test` runs the whole suite on Linux — both connectors,
+in a container that COPYs the source rather than mounting it, so it cannot leave Linux object
+files in your `ext/`. Worth it before touching anything platform-shaped: the first time
+liblbug misbehaved on Linux only, diagnosing it took a throwaway CI branch.
+
 Before opening a pull request:
 
 ```bash

@@ -1,0 +1,19 @@
+# Host build artefacts must never enter the image. ext/ accumulates generated files that
+# carry absolute host paths (config.status, Makefile.objects, libtool), so this is an
+# allowlist rather than a list of things to exclude — a blocklist was already incomplete
+# once, and produced "No rule to make target /Users/…/ladybug.c" inside the container.
+ext/*
+!ext/config.m4
+!ext/php_ladybug.h
+!ext/ladybug.c
+!ext/ladybug_value.c
+!ext/ladybug_arginfo.h
+!ext/tests
+!ext/.gitignore
+
+lib/
+vendor/
+build/
+composer.lock
+.git/
+.github/

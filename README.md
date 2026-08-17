@@ -286,13 +286,17 @@ Two things worth knowing:
   (`'[1.000000,0.000000,0.000000]'`). Use `cast(d.emb AS FLOAT[])` for a PHP array of floats.
   Search itself is unaffected — the index reads the column, not your process.
 - **`INSTALL` downloads to `~/.lbdb`**, so it needs network access on first use.
-- **`INSTALL` crashes the process on Linux** with liblbug 0.19.1 — a segfault, not an
-  exception, so there is nothing to catch. Reproduced on ubuntu-latest for all three
-  extensions and through both connectors, while ordinary queries on the same connection keep
-  working; the same code installs cleanly on macOS. Install extensions out of band there (a
-  separate process, or a pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a
-  normal exception when the extension is missing. The tests for these extensions skip on Linux
-  for this reason — `LADYBUG_TEST_EXTENSIONS=1` overrides.
+- **`INSTALL` can crash the process** with liblbug 0.19.1 — a segfault, not an exception, so
+  there is nothing to catch. Seen on GitHub Actions' Linux runners for all three extensions
+  and through both connectors, while ordinary queries on the same connection keep working. It
+  is not simply "Linux": `make docker-test` installs them cleanly on Debian, x86_64 and arm64
+  alike, and every network failure mode tried there — no network, refused proxy, dead DNS —
+  gives a normal exception. The cause is unidentified.
+
+  If your environment is affected, install extensions out of band (a separate process, or a
+  pre-populated `~/.lbdb`) and use `LOAD` only, which fails with a normal exception when the
+  extension is missing. These tests skip on Linux CI for this reason;
+  `LADYBUG_TEST_EXTENSIONS=1` overrides.
 
 `Node` and `Rel` expose properties three ways, so the call site can read however suits:
 

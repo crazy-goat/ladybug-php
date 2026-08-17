@@ -15,8 +15,9 @@ use Ladybug\Type\DataType;
  * not declare, and `vector` stores embeddings in fixed-size `ARRAY` columns, which liblbug's
  * own accessors cannot decompose.
  *
- * `INSTALL` downloads from the internet into ~/.lbdb, so every test here skips when that is
- * unavailable rather than failing an offline checkout.
+ * `INSTALL` downloads from the internet into ~/.lbdb, so these tests skip when that is
+ * unavailable rather than failing an offline checkout — and on Linux CI, where it crashes
+ * outright. See load() for the details of that.
  */
 final class ExtensionTest extends IntegrationTestCase
 {
@@ -112,19 +113,23 @@ final class ExtensionTest extends IntegrationTestCase
     /**
      * Installs and loads an official extension, or skips.
      *
-     * `INSTALL` is not merely unreliable on Linux with liblbug 0.19.1 — it segfaults, taking
-     * the whole test process with it. Verified on ubuntu-latest for all three extensions and
-     * on both connectors, while plain queries on the same connection are fine; on macOS the
-     * same code installs and passes. A segfault cannot be caught, so the only safe option is
-     * not to attempt it. Set LADYBUG_TEST_EXTENSIONS=1 to try anyway, once a liblbug that
-     * reports the failure instead of crashing is in use.
+     * `INSTALL` segfaults on GitHub Actions' Linux runners with liblbug 0.19.1 — all three
+     * extensions, both connectors, while ordinary queries on the same connection keep working.
+     * A segfault cannot be caught, so those runs have to not attempt it.
+     *
+     * It is specific to that environment rather than to Linux: in a Debian container it
+     * installs cleanly on x86_64 and arm64 alike, and every network failure mode tried there
+     * (no network, refused proxy, dead DNS) produces a normal exception instead of a crash. The
+     * cause is still unidentified, so the guard is by CI rather than by platform, and
+     * LADYBUG_TEST_EXTENSIONS=1 overrides it.
      */
     private function load(string $name): void
     {
-        if (PHP_OS_FAMILY === 'Linux' && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
+        if (PHP_OS_FAMILY === 'Linux' && getenv('CI') !== false && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
             self::markTestSkipped(
-                "INSTALL crashes the process on Linux with liblbug 0.19.1, so the {$name} extension "
-                . 'cannot be tested here. Set LADYBUG_TEST_EXTENSIONS=1 to override.',
+                "INSTALL crashes the process on Linux CI runners with liblbug 0.19.1, so the {$name} "
+                . 'extension cannot be tested there. It works in a Linux container; set '
+                . 'LADYBUG_TEST_EXTENSIONS=1 to try anyway.',
             );
         }
 

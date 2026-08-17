@@ -15,18 +15,23 @@ Supports liblbug 0.19.x.
 
 ### Added
 
+- A Linux test environment: `make docker-test` runs the whole suite, both connectors, in a
+  container (`DOCKER_PHP=8.4` picks a version). It COPYs the source rather than mounting it —
+  a mount would leave Linux object files and a Linux `ladybug.so` in `ext/`, which share their
+  names with the host's and would break the next native build.
 - `DataType::Json`, for the type id the `json` extension introduces. It is 60, which lbug.h
   does not declare — the core header stops at `UUID = 59` — so reading a `JSON` column used to
   throw "liblbug is newer than this client" and `columnTypes()` threw a raw `ValueError`.
 - `DataType::Unknown`, reported for any type id this client has no case for. Loaded extensions
   can introduce types at any time, and one unmapped column should not fail the whole query —
   the value still arrives as liblbug's own rendering.
-- Integration coverage for the `json`, `fts` and `vector` extensions. `INSTALL` segfaults on
-  Linux with liblbug 0.19.1 — verified for all three extensions and both connectors, while the
-  same code installs cleanly on macOS — so these tests skip there rather than crashing the
-  suite; `LADYBUG_TEST_EXTENSIONS=1` overrides. Documented, because it affects anyone deploying
-  vector search on Linux. Coverage includes vector search returning neighbours in distance order, and embedding columns
-  (`FLOAT[n]`, an `ARRAY`) arriving as text and casting to a list.
+- Integration coverage for the `json`, `fts` and `vector` extensions: vector search returning
+  neighbours in distance order, and embedding columns (`FLOAT[n]`, an `ARRAY`) arriving as text
+  and casting to a list. `INSTALL` segfaults on GitHub Actions' Linux runners with liblbug
+  0.19.1 — all three extensions, both connectors — so these tests skip on Linux CI rather than
+  crashing the suite; `LADYBUG_TEST_EXTENSIONS=1` overrides. It is specific to that environment,
+  not to Linux: a Debian container installs them cleanly on both architectures, and every
+  network failure mode tried there produces a normal exception.
 - `RECURSIVE_REL` values are returned as `Ladybug\Type\Path` instead of liblbug's text
   rendering. A path is a STRUCT of two lists and liblbug's struct accessors do read it — the
   members are the same `Node` and `Rel` objects every other query produces. `Path` exposes

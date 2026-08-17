@@ -50,6 +50,14 @@ now written down, and enforced by a test rather than by good intentions.
   `QueryException::$parameters` carries the bound values — `__toString()` never prints them, but
   anything that serialises the exception will.
 
+### Fixed
+
+- `build/` is ignored, and the 15 generated files that 0.4.0 committed there are untracked. The
+  assembled PIE mirror and the `docker-repro-install` script had been swept into the repository,
+  which deadlocked the next release: `tools/build-ext-mirror.sh` refuses to publish from a dirty
+  working tree, and its own output was what made the tree dirty. Found by running the 0.5.0
+  release, not by reading the script.
+
 ## [0.4.0] - 2026-08-17
 
 Supports liblbug 0.19.x. Distribution: the package is on Packagist, the extension ships as a

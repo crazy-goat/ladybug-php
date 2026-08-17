@@ -4,3 +4,8 @@
 /.php-cs-fixer.cache
 /.phpstan.cache
 composer.lock
+# Scratch space for generated things: the assembled PIE mirror (tools/build-ext-mirror.sh)
+# and the repro script make docker-repro-install writes. Committing the mirror once already
+# deadlocked the next release — the script refuses to publish from a dirty tree, and its own
+# output was what made the tree dirty.
+/build/

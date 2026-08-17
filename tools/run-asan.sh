@@ -65,6 +65,14 @@ export USE_ZEND_ALLOC=0
 # the RSS growth test in the integration suite.
 export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:verify_asan_link_order=0:exitcode=1:print_summary=1}"
 
+# PHP dlopens opcache with RTLD_DEEPBIND, which the sanitizer runtime refuses to run
+# alongside — it aborts before the first test. Nothing here can unload a zend_extension, so
+# say what to do rather than letting the abort speak for itself.
+if php -m 2>/dev/null | grep -qi '^Zend OPcache$'; then
+    echo "run-asan: warning — opcache is loaded. The sanitizer cannot coexist with its" >&2
+    echo "  RTLD_DEEPBIND dlopen; run with an opcache-free php (setup-php: ':opcache')." >&2
+fi
+
 echo "run-asan: $RUNTIME"
 echo "run-asan: ASAN_OPTIONS=$ASAN_OPTIONS"
 

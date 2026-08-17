@@ -13,6 +13,21 @@ requirement the package refuses to run without — see
 
 Supports liblbug 0.19.x.
 
+### Fixed
+
+- The FFI connector no longer crashes on `INSTALL` in a process that has libstdc++ loaded. It
+  now `dlopen`s liblbug itself, with plain `RTLD_LAZY`, before `ext/ffi` can bind it with
+  `RTLD_DEEPBIND`; an already-loaded object keeps its original binding. Linux only, only when a
+  libstdc++ is already mapped, and `LADYBUG_NO_PRELOAD=1` opts out. In a container with `intl`:
+  139 before, 0 after.
+
+  The native extension cannot fix this from inside — liblbug is a link-time dependency, so PHP's
+  flags apply before any of our code runs — but `--enable-ladybug-static` avoids it, because
+  `liblbug.a` carries no libstdc++ of its own. That is now the documented linkage for
+  distributing the extension on Linux. One consequence worth knowing: loading a dynamically
+  linked `ladybug.so` re-exposes the FFI connector, since liblbug is bound before its fix can
+  run.
+
 ### Changed
 
 - The `INSTALL` crash is diagnosed. liblbug 0.19.1's prebuilt Linux `.so` exports its
@@ -23,10 +38,9 @@ Supports liblbug 0.19.x.
   `std::regex` inside `std::codecvt`.
 
   `tools/repro-install-crash-dlopen.c` demonstrates it in C with no PHP: DEEPBIND on liblbug
-  plus a libstdc++ loaded first gives 139, dropping either gives 0. `LD_PRELOAD` of liblbug is a
-  verified workaround on both connectors; `maxThreads: 1` is not. The upstream fix is
-  `-Wl,--exclude-libs,ALL` and `-fno-gnu-unique` on the Linux release — the macOS dylib already
-  exports none of these symbols.
+  plus a libstdc++ loaded first gives 139, dropping either gives 0. `maxThreads: 1` does not
+  help. The upstream fix is `-Wl,--exclude-libs,ALL` and `-fno-gnu-unique` on the Linux release
+  — the macOS dylib already exports none of these symbols.
 
   Three earlier descriptions of this were wrong and are corrected: it is not Linux as such, not
   GitHub's runners as such, and the first `nm` measurement that suggested no exported `std::`

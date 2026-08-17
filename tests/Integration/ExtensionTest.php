@@ -156,11 +156,23 @@ final class ExtensionTest extends IntegrationTestCase
      */
     private function load(string $name): void
     {
-        if ($this->hasSecondCxxRuntime() && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
+        // What matters is whether liblbug was bound with RTLD_DEEPBIND before we could get to
+        // it, not which connector is under test. FfiConnector defuses that by loading liblbug
+        // itself first — but a dynamically linked ladybug extension drags liblbug in as a
+        // link-time dependency at PHP startup, before any PHP code runs, and then both
+        // connectors crash. Measured in a container with intl: FFI alone passes all five of
+        // these, FFI with the extension merely loaded exits 139.
+        //
+        // Linking the extension statically avoids it as well, since liblbug.a carries no
+        // libstdc++ of its own, but nothing in the ABI reports the linkage — so an extension
+        // being loaded at all is treated as hazardous.
+        if ($this->hasSecondCxxRuntime()
+            && \extension_loaded('ladybug')
+            && getenv('LADYBUG_TEST_EXTENSIONS') === false) {
             self::markTestSkipped(
-                "INSTALL crashes with liblbug 0.19.1 when the system libstdc++ is also loaded, so the "
-                . "{$name} extension cannot be tested in this process. Set LADYBUG_TEST_EXTENSIONS=1 to "
-                . 'try anyway.',
+                "INSTALL crashes when a dynamically linked liblbug 0.19.1 is bound alongside the system "
+                . "libstdc++, so the {$name} extension cannot be tested in this process. Build the "
+                . 'extension with --enable-ladybug-static, or set LADYBUG_TEST_EXTENSIONS=1 to try anyway.',
             );
         }
 

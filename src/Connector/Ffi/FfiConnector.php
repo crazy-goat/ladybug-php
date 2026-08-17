@@ -36,6 +36,8 @@ final readonly class FfiConnector implements Connector
         }
 
         $path = LibraryLocator::findOrFail($libraryPath);
+        $this->loadAheadOfFfi($path);
+
         try {
             $ffi = \FFI::cdef(Cdef::source(), $path);
         } catch (Exception $e) {
@@ -48,6 +50,52 @@ final readonly class FfiConnector implements Connector
         // Before anything that passes a struct across the boundary. lbug_get_version()
         // only returns a string, so it is safe to call even against a mismatched library.
         LibraryVersion::assertSupported($this->libraryVersion(), 'FFI');
+    }
+
+    /**
+     * Loads liblbug ourselves, before FFI does, so that it is not bound with RTLD_DEEPBIND.
+     *
+     * liblbug's Linux build exports its statically linked libstdc++, including 130 symbols with
+     * STB_GNU_UNIQUE binding — locale facet ids. glibc binds those process-wide and ignores
+     * RTLD_DEEPBIND for them, while ordinary globals honour it. ext/ffi dlopens with
+     * RTLD_LAZY|RTLD_GLOBAL|RTLD_DEEPBIND, so if a system libstdc++ is already loaded (`intl`
+     * links it) liblbug's locale registry ends up split across two runtimes, and the first
+     * statement that compiles a std::regex — `INSTALL` does — segfaults inside std::codecvt.
+     *
+     * dlopen returns the existing handle for an already-loaded object without re-applying
+     * flags, so getting there first with plain RTLD_LAZY is enough: FFI then inherits our
+     * binding. Verified in a container with `intl`: 139 without this, 0 with it.
+     *
+     * Only when the hazard is actually present, which is also when it is safe to assume /proc
+     * is readable. Best effort throughout: on any failure the caller is no worse off than
+     * before, and LADYBUG_NO_PRELOAD=1 opts out.
+     *
+     * @see tools/repro-install-crash-dlopen.c for the same crash in C, without PHP
+     */
+    private function loadAheadOfFfi(string $path): void
+    {
+        if (PHP_OS_FAMILY !== 'Linux' || getenv('LADYBUG_NO_PRELOAD') !== false) {
+            return;
+        }
+
+        // A libstdc++ arriving after liblbug is harmless; only one already mapped splits the
+        // registry. Skipping the work in the common case keeps this out of everyone's way.
+        $maps = @file_get_contents('/proc/self/maps');
+        if (!\is_string($maps) || !str_contains($maps, 'libstdc++')) {
+            return;
+        }
+
+        // glibc 2.34 folded libdl into libc; try both rather than guess the platform's vintage.
+        foreach (['libdl.so.2', 'libc.so.6'] as $provider) {
+            try {
+                $dl = \FFI::cdef('void *dlopen(const char *filename, int flags);', $provider);
+                $dl->dlopen($path, 1); // RTLD_LAZY, deliberately not RTLD_GLOBAL
+
+                return;
+            } catch (\Throwable) {
+                continue;
+            }
+        }
     }
 
     public static function isAvailable(): bool

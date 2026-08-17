@@ -124,6 +124,10 @@ bash tools/fetch-liblbug.sh 0.19.1 --static
 make ext-static
 ```
 
+On Linux this is also the linkage to **distribute**: a dynamically linked extension is subject
+to the `INSTALL` crash described under [LadybugDB extensions](#ladybugdb-extensions), and the
+static build is not.
+
 That produces a ~20 MB `.so` with no liblbug dependency at all (`otool -L` / `ldd` shows
 only the C++ runtime and libc), which is the right trade for containers and for hosts where
 you would rather not ship a second shared object. liblbug is C++ behind a C API, so the
@@ -344,16 +348,27 @@ Two things worth knowing:
   `make docker-repro-install` shows the same through PHP: the same image, liblbug and script
   exit 0 without `intl` and 139 with it.
 
-  **Workaround**, verified on both connectors — load liblbug before PHP can, without DEEPBIND:
+  **The FFI connector handles this itself.** It loads liblbug through `dlopen` before
+  `ext/ffi` can, with plain `RTLD_LAZY`; an already-loaded object keeps its original binding, so
+  DEEPBIND never applies. Only on Linux, only when a libstdc++ is already mapped, and
+  `LADYBUG_NO_PRELOAD=1` opts out.
 
-  ```bash
-  LD_PRELOAD=/path/to/liblbug.so php your-script.php
-  ```
+  **The native extension needs `--enable-ladybug-static`.** There liblbug is a link-time
+  dependency, so PHP's flags apply at startup, before any of our code runs — nothing the
+  library can do from inside. The static build sidesteps it because `liblbug.a` carries no
+  libstdc++ of its own: our `.so` links the system one dynamically, leaving a single runtime.
+  Verified in a container with `intl`: shared exits 139, static exits 0.
 
+  Note the consequence: **loading a dynamically linked `ladybug.so` makes the FFI connector
+  crash too**, because liblbug is then already bound before FFI's fix can run. Don't mix them.
+
+  Failing both, `LD_PRELOAD=/path/to/liblbug.so php …` works for either connector.
   `maxThreads: 1` does *not* help; the dozen worker threads at the crash site are incidental.
-  The fix belongs upstream: link the Linux release with `-Wl,--exclude-libs,ALL` (or a version
-  script exporting only `lbug_*`) and compile with `-fno-gnu-unique`. The macOS dylib exports
-  none of these symbols, so this is a Linux packaging difference rather than a design choice.
+
+  The real fix belongs upstream: link the Linux release with `-Wl,--exclude-libs,ALL` (or a
+  version script exporting only `lbug_*`) and compile with `-fno-gnu-unique`. The macOS dylib
+  exports none of these symbols, so this is a Linux packaging difference rather than a design
+  choice.
 
   The tests detect the hazardous combination and skip; `LADYBUG_TEST_EXTENSIONS=1` overrides.
 

@@ -13,6 +13,10 @@ concurrency:
 
 env:
   LIBLBUG_VERSION: '0.19.1'
+  # Composer fetches dists from codeload.github.com, which rate-limits unauthenticated
+  # requests hard enough to fail every job at once — it happened four times in one afternoon.
+  # The automatic token needs no setup and raises the limit.
+  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
 
 jobs:
   # Style, static analysis and the refactor check. One PHP version is enough — these

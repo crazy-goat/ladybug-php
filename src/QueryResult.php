@@ -33,6 +33,18 @@ final class QueryResult implements \IteratorAggregate, \Countable, \Stringable
 
     private bool $consumed = false;
 
+    /**
+     * The successor in a multi-statement chain, if any. Held so that close() on this
+     * result can be deferred while the successor still needs its C-side backing store.
+     */
+    private ?self $successor = null;
+
+    /**
+     * The predecessor in a multi-statement chain, if any. When this result is closed,
+     * the predecessor's deferred close is triggered as well.
+     */
+    private ?self $predecessor = null;
+
     /** @internal produced by Connection and PreparedStatement */
     public function __construct(
         private readonly Connector $connector,
@@ -245,7 +257,15 @@ final class QueryResult implements \IteratorAggregate, \Countable, \Stringable
         $this->assertOpen();
         $next = $this->connector->nextResultSet($this->handle);
 
-        return !$next instanceof Handle ? null : new self($this->connector, $next, $this->cypher, owner: $this->owner);
+        if (!$next instanceof Handle) {
+            return null;
+        }
+
+        $successor = new self($this->connector, $next, $this->cypher, owner: $this->owner);
+        $successor->predecessor = $this;
+        $this->successor = $successor;
+
+        return $successor;
     }
 
     /** liblbug's own tabular rendering — mostly for debugging. */
@@ -274,7 +294,21 @@ final class QueryResult implements \IteratorAggregate, \Countable, \Stringable
         }
 
         $this->closed = true;
+
+        /* In a multi-statement chain the C-side result owned by this handle is also the
+         * backing store for its successor. Defer the actual close until the successor is
+         * closed too, so freeing this result cannot free the successor out from under
+         * the caller. */
+        if ($this->successor !== null && !$this->successor->closed) {
+            return;
+        }
+
         $this->connector->closeResult($this->handle);
+
+        /* If the predecessor deferred its close because of us, it can now be closed. */
+        if ($this->predecessor !== null && $this->predecessor->closed) {
+            $this->predecessor->close();
+        }
     }
 
     public function __destruct()

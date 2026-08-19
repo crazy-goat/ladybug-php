@@ -29,7 +29,7 @@ now written down, and enforced by a test rather than by good intentions.
 - A **compatibility matrix** — which liblbug series each release accepts, and why a liblbug minor
   release requires a release here — and a **platform table** stating that Windows is unsupported
   rather than merely untested.
-- `tests/Unit/ConfigTest`, which had no unit coverage of its own.
+- `Config`, which had no unit coverage of its own.
 
 ### Changed
 

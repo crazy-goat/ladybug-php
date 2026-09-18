@@ -657,6 +657,6 @@ pie install crazy-goat/ladybug-ext --enable-ladybug-static --with-liblbug="$PWD/
 It still compiles, so it needs the toolchain and liblbug on disk like option 3 — what it saves is
 knowing phpize, configure and where the INI goes. `make mirror-ext` builds that package here.
 
-## Licence
+## License
 
 MIT, matching LadybugDB.

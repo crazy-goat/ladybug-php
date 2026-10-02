@@ -218,8 +218,7 @@ static ladybug_statement_object *ladybug_statement_of(zval *zv)
     }
     if (!Z_ISUNDEF(object->connection) && !LADYBUG_CONNECTION_P(&object->connection)->open) {
         ladybug_throw(
-            ladybug_exception_ce,
-            "This statement handle is unusable: its connection was closed."
+            ladybug_exception_ce, "This statement handle is unusable: its connection was closed."
         );
         return NULL;
     }
@@ -239,8 +238,7 @@ static ladybug_result_object *ladybug_result_of(zval *zv)
      * read would reach freed memory instead of raising. */
     if (!Z_ISUNDEF(object->connection) && !LADYBUG_CONNECTION_P(&object->connection)->open) {
         ladybug_throw(
-            ladybug_exception_ce,
-            "This result handle is unusable: its connection was closed."
+            ladybug_exception_ce, "This result handle is unusable: its connection was closed."
         );
         return NULL;
     }
@@ -307,7 +305,9 @@ static zend_string *ladybug_format_datetime(zval *value)
     zend_string *result = NULL;
 
     ZVAL_STRING(&format, "Y-m-d H:i:s.u");
-    zend_call_method_with_1_params(Z_OBJ_P(value), Z_OBJCE_P(value), NULL, "format", &formatted, &format);
+    zend_call_method_with_1_params(
+        Z_OBJ_P(value), Z_OBJCE_P(value), NULL, "format", &formatted, &format
+    );
     zval_ptr_dtor(&format);
 
     if (!EG(exception) && Z_TYPE(formatted) == IS_STRING) {
@@ -333,14 +333,13 @@ static int ladybug_bind_parameter(lbug_prepared_statement *stmt, zend_string *na
             lbug_value_destroy(null_value);
             break;
         }
-        case IS_TRUE:
-            state = lbug_prepared_statement_bind_bool(stmt, ZSTR_VAL(name), true);
-            break;
+        case IS_TRUE: state = lbug_prepared_statement_bind_bool(stmt, ZSTR_VAL(name), true); break;
         case IS_FALSE:
             state = lbug_prepared_statement_bind_bool(stmt, ZSTR_VAL(name), false);
             break;
         case IS_LONG:
-            state = lbug_prepared_statement_bind_int64(stmt, ZSTR_VAL(name), (int64_t) Z_LVAL_P(value));
+            state =
+                lbug_prepared_statement_bind_int64(stmt, ZSTR_VAL(name), (int64_t) Z_LVAL_P(value));
             break;
         case IS_DOUBLE:
             state = lbug_prepared_statement_bind_double(stmt, ZSTR_VAL(name), Z_DVAL_P(value));
@@ -423,15 +422,16 @@ ZEND_FUNCTION(ladybug_database_open)
     zval *value;
 
     ZEND_PARSE_PARAMETERS_START(1, 2)
-        Z_PARAM_STR(path)
-        Z_PARAM_OPTIONAL
-        Z_PARAM_ARRAY_HT(config)
+    Z_PARAM_STR(path)
+    Z_PARAM_OPTIONAL
+    Z_PARAM_ARRAY_HT(config)
     ZEND_PARSE_PARAMETERS_END();
 
     system_config = lbug_default_system_config();
 
     if (config != NULL) {
-        ZEND_HASH_FOREACH_STR_KEY_VAL(config, key, value) {
+        ZEND_HASH_FOREACH_STR_KEY_VAL(config, key, value)
+        {
             if (key == NULL) {
                 continue;
             }
@@ -450,10 +450,13 @@ ZEND_FUNCTION(ladybug_database_open)
             } else if (zend_string_equals_literal(key, "checkpointThreshold")) {
                 system_config.checkpoint_threshold = (uint64_t) zval_get_long(value);
             } else {
-                ladybug_throw(ladybug_exception_ce, "Unknown configuration key \"%s\".", ZSTR_VAL(key));
+                ladybug_throw(
+                    ladybug_exception_ce, "Unknown configuration key \"%s\".", ZSTR_VAL(key)
+                );
                 RETURN_THROWS();
             }
-        } ZEND_HASH_FOREACH_END();
+        }
+        ZEND_HASH_FOREACH_END();
     }
 
     object_init_ex(return_value, ladybug_database_ce);
@@ -490,7 +493,7 @@ ZEND_FUNCTION(ladybug_database_close)
     ladybug_database_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(database, ladybug_database_ce)
+    Z_PARAM_OBJECT_OF_CLASS(database, ladybug_database_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = LADYBUG_DATABASE_P(database);
@@ -507,7 +510,7 @@ ZEND_FUNCTION(ladybug_connect)
     ladybug_connection_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(database, ladybug_database_ce)
+    Z_PARAM_OBJECT_OF_CLASS(database, ladybug_database_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     db = ladybug_database_of(database);
@@ -534,7 +537,7 @@ ZEND_FUNCTION(ladybug_connection_close)
     ladybug_connection_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = LADYBUG_CONNECTION_P(connection);
@@ -551,8 +554,8 @@ ZEND_FUNCTION(ladybug_connection_set_max_threads)
     ladybug_connection_object *object;
 
     ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
-        Z_PARAM_LONG(threads)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_LONG(threads)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_connection_of(connection);
@@ -560,11 +563,20 @@ ZEND_FUNCTION(ladybug_connection_set_max_threads)
         RETURN_THROWS();
     }
     if (threads < 0) {
-        ladybug_throw(ladybug_exception_ce, "The thread count cannot be negative, got %" PRId64 ".", (int64_t) threads);
+        ladybug_throw(
+            ladybug_exception_ce,
+            "The thread count cannot be negative, got %" PRId64 ".",
+            (int64_t) threads
+        );
         RETURN_THROWS();
     }
-    if (lbug_connection_set_max_num_thread_for_exec(&object->conn, (uint64_t) threads) != LbugSuccess) {
-        ladybug_throw(ladybug_exception_ce, "Could not set the thread count to %" PRId64 ".", (int64_t) threads);
+    if (lbug_connection_set_max_num_thread_for_exec(&object->conn, (uint64_t) threads) !=
+        LbugSuccess) {
+        ladybug_throw(
+            ladybug_exception_ce,
+            "Could not set the thread count to %" PRId64 ".",
+            (int64_t) threads
+        );
         RETURN_THROWS();
     }
 }
@@ -576,8 +588,8 @@ ZEND_FUNCTION(ladybug_connection_set_query_timeout)
     ladybug_connection_object *object;
 
     ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
-        Z_PARAM_LONG(timeout)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_LONG(timeout)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_connection_of(connection);
@@ -585,11 +597,19 @@ ZEND_FUNCTION(ladybug_connection_set_query_timeout)
         RETURN_THROWS();
     }
     if (timeout < 0) {
-        ladybug_throw(ladybug_exception_ce, "The query timeout cannot be negative, got %" PRId64 ".", (int64_t) timeout);
+        ladybug_throw(
+            ladybug_exception_ce,
+            "The query timeout cannot be negative, got %" PRId64 ".",
+            (int64_t) timeout
+        );
         RETURN_THROWS();
     }
     if (lbug_connection_set_query_timeout(&object->conn, (uint64_t) timeout) != LbugSuccess) {
-        ladybug_throw(ladybug_exception_ce, "Could not set the query timeout to %" PRId64 " ms.", (int64_t) timeout);
+        ladybug_throw(
+            ladybug_exception_ce,
+            "Could not set the query timeout to %" PRId64 " ms.",
+            (int64_t) timeout
+        );
         RETURN_THROWS();
     }
 }
@@ -600,7 +620,7 @@ ZEND_FUNCTION(ladybug_connection_interrupt)
     ladybug_connection_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_connection_of(connection);
@@ -618,8 +638,8 @@ ZEND_FUNCTION(ladybug_query)
     lbug_query_result result;
 
     ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
-        Z_PARAM_STR(cypher)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_STR(cypher)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_connection_of(connection);
@@ -641,8 +661,8 @@ ZEND_FUNCTION(ladybug_prepare)
     ladybug_statement_object *statement;
 
     ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
-        Z_PARAM_STR(cypher)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_STR(cypher)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_connection_of(connection);
@@ -655,9 +675,8 @@ ZEND_FUNCTION(ladybug_prepare)
 
     lbug_connection_prepare(&object->conn, ZSTR_VAL(cypher), &statement->stmt);
     if (!lbug_prepared_statement_is_success(&statement->stmt)) {
-        zend_string *message = ladybug_take_string(
-            lbug_prepared_statement_get_error_message(&statement->stmt)
-        );
+        zend_string *message =
+            ladybug_take_string(lbug_prepared_statement_get_error_message(&statement->stmt));
 
         lbug_prepared_statement_destroy(&statement->stmt);
         zval_ptr_dtor(return_value);
@@ -688,10 +707,10 @@ ZEND_FUNCTION(ladybug_execute)
     zval *value;
 
     ZEND_PARSE_PARAMETERS_START(2, 3)
-        Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
-        Z_PARAM_OBJECT_OF_CLASS(statement, ladybug_statement_ce)
-        Z_PARAM_OPTIONAL
-        Z_PARAM_ARRAY_HT(parameters)
+    Z_PARAM_OBJECT_OF_CLASS(connection, ladybug_connection_ce)
+    Z_PARAM_OBJECT_OF_CLASS(statement, ladybug_statement_ce)
+    Z_PARAM_OPTIONAL
+    Z_PARAM_ARRAY_HT(parameters)
     ZEND_PARSE_PARAMETERS_END();
 
     connection_object = ladybug_connection_of(connection);
@@ -706,11 +725,14 @@ ZEND_FUNCTION(ladybug_execute)
     if (parameters != NULL) {
         bool bind_failed = false;
 
-        ZEND_HASH_FOREACH_STR_KEY_VAL(parameters, key, value) {
+        ZEND_HASH_FOREACH_STR_KEY_VAL(parameters, key, value)
+        {
             if (key == NULL) {
                 /* An integer key cannot name a Cypher parameter. Report it rather than
                  * silently dropping the binding. */
-                ladybug_throw(ladybug_query_error_ce, "Parameter names must be strings; got an integer key.");
+                ladybug_throw(
+                    ladybug_query_error_ce, "Parameter names must be strings; got an integer key."
+                );
                 bind_failed = true;
                 break;
             }
@@ -718,7 +740,8 @@ ZEND_FUNCTION(ladybug_execute)
                 bind_failed = true;
                 break;
             }
-        } ZEND_HASH_FOREACH_END();
+        }
+        ZEND_HASH_FOREACH_END();
 
         if (bind_failed) {
             RETURN_THROWS();
@@ -737,7 +760,7 @@ ZEND_FUNCTION(ladybug_statement_close)
     ladybug_statement_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(statement, ladybug_statement_ce)
+    Z_PARAM_OBJECT_OF_CLASS(statement, ladybug_statement_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = LADYBUG_STATEMENT_P(statement);
@@ -754,7 +777,7 @@ ZEND_FUNCTION(ladybug_result_column_names)
     uint64_t index;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -787,7 +810,7 @@ ZEND_FUNCTION(ladybug_result_column_types)
     uint64_t index;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -802,7 +825,9 @@ ZEND_FUNCTION(ladybug_result_column_types)
         if (lbug_query_result_get_column_data_type(&object->result, index, &type) != LbugSuccess) {
             zval_ptr_dtor(return_value);
             ZVAL_UNDEF(return_value);
-            ladybug_throw(ladybug_exception_ce, "Could not read the type of column %" PRIu64 ".", index);
+            ladybug_throw(
+                ladybug_exception_ce, "Could not read the type of column %" PRIu64 ".", index
+            );
             RETURN_THROWS();
         }
         add_next_index_long(return_value, (zend_long) lbug_data_type_get_id(&type));
@@ -816,7 +841,7 @@ ZEND_FUNCTION(ladybug_result_row_count)
     ladybug_result_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -835,7 +860,7 @@ ZEND_FUNCTION(ladybug_result_fetch)
     uint64_t index;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -860,7 +885,11 @@ ZEND_FUNCTION(ladybug_result_fetch)
             lbug_flat_tuple_destroy(&tuple);
             zval_ptr_dtor(return_value);
             ZVAL_UNDEF(return_value);
-            ladybug_throw(ladybug_query_error_ce, "Could not read column %" PRIu64 " of the current row.", index);
+            ladybug_throw(
+                ladybug_query_error_ce,
+                "Could not read column %" PRIu64 " of the current row.",
+                index
+            );
             RETURN_THROWS();
         }
         if (ladybug_value_to_zval(&value, &converted) != SUCCESS) {
@@ -885,7 +914,7 @@ ZEND_FUNCTION(ladybug_result_rewind)
     ladybug_result_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -902,7 +931,7 @@ ZEND_FUNCTION(ladybug_result_next_set)
     lbug_query_result next;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -914,7 +943,9 @@ ZEND_FUNCTION(ladybug_result_next_set)
         RETURN_NULL();
     }
     if (lbug_query_result_get_next_query_result(&object->result, &next) != LbugSuccess) {
-        ladybug_throw(ladybug_query_error_ce, "Failed to advance to the next result in the statement chain.");
+        ladybug_throw(
+            ladybug_query_error_ce, "Failed to advance to the next result in the statement chain."
+        );
         RETURN_THROWS();
     }
     if (ladybug_wrap_result(next, &object->connection, return_value) != SUCCESS) {
@@ -929,7 +960,7 @@ ZEND_FUNCTION(ladybug_result_summary)
     lbug_query_summary summary;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = ladybug_result_of(result);
@@ -943,8 +974,12 @@ ZEND_FUNCTION(ladybug_result_summary)
         add_assoc_double(return_value, "executionTimeMs", 0.0);
         return;
     }
-    add_assoc_double(return_value, "compilingTimeMs", lbug_query_summary_get_compiling_time(&summary));
-    add_assoc_double(return_value, "executionTimeMs", lbug_query_summary_get_execution_time(&summary));
+    add_assoc_double(
+        return_value, "compilingTimeMs", lbug_query_summary_get_compiling_time(&summary)
+    );
+    add_assoc_double(
+        return_value, "executionTimeMs", lbug_query_summary_get_execution_time(&summary)
+    );
     lbug_query_summary_destroy(&summary);
 }
 
@@ -954,7 +989,7 @@ ZEND_FUNCTION(ladybug_result_close)
     ladybug_result_object *object;
 
     ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
+    Z_PARAM_OBJECT_OF_CLASS(result, ladybug_result_ce)
     ZEND_PARSE_PARAMETERS_END();
 
     object = LADYBUG_RESULT_P(result);
@@ -973,19 +1008,21 @@ static zend_class_entry *ladybug_register_handle_class(
     HashTable *(*get_gc)(zend_object *, zval **, int *),
     size_t std_offset,
     zend_object_handlers *handlers
-) {
+)
+{
     zend_class_entry ce;
     zend_class_entry *registered;
 
     INIT_CLASS_ENTRY_EX(ce, name, strlen(name), NULL);
     registered = zend_register_internal_class(&ce);
-    registered->ce_flags |= ZEND_ACC_FINAL | ZEND_ACC_NO_DYNAMIC_PROPERTIES | ZEND_ACC_NOT_SERIALIZABLE;
+    registered->ce_flags |=
+        ZEND_ACC_FINAL | ZEND_ACC_NO_DYNAMIC_PROPERTIES | ZEND_ACC_NOT_SERIALIZABLE;
     registered->create_object = create;
 
     memcpy(handlers, &std_object_handlers, sizeof(zend_object_handlers));
     handlers->offset = std_offset;
     handlers->free_obj = free_obj;
-    handlers->clone_obj = NULL;  /* a handle cannot be duplicated */
+    handlers->clone_obj = NULL; /* a handle cannot be duplicated */
     if (get_gc != NULL) {
         handlers->get_gc = get_gc;
     }
@@ -1067,14 +1104,18 @@ PHP_MINIT_FUNCTION(ladybug)
     if (!ladybug_liblbug_supported(liblbug_version)) {
         bool overridden = ladybug_version_check_overridden();
 
-        zend_error(E_CORE_WARNING,
+        zend_error(
+            E_CORE_WARNING,
             "ladybug: liblbug %s is not supported by this extension, which needs %s.x "
             "(built against %s). liblbug changes struct layouts between minor releases, so "
             "continuing would risk wrong results or a crash rather than an error. Rebuild "
             "the extension against a supported liblbug, or set %s=1 to load anyway at your "
             "own risk.",
             liblbug_version != NULL ? liblbug_version : "(unreadable)",
-            LADYBUG_LIBLBUG_SERIES, LADYBUG_LIBLBUG_VERIFIED, LADYBUG_ALLOW_ANY_LIBRARY_ENV);
+            LADYBUG_LIBLBUG_SERIES,
+            LADYBUG_LIBLBUG_VERIFIED,
+            LADYBUG_ALLOW_ANY_LIBRARY_ENV
+        );
 
         if (!overridden) {
             return FAILURE;
@@ -1082,20 +1123,36 @@ PHP_MINIT_FUNCTION(ladybug)
     }
 
     ladybug_database_ce = ladybug_register_handle_class(
-        LADYBUG_DATABASE_CLASS, ladybug_database_create, ladybug_database_free, NULL,
-        XtOffsetOf(ladybug_database_object, std), &ladybug_database_handlers
+        LADYBUG_DATABASE_CLASS,
+        ladybug_database_create,
+        ladybug_database_free,
+        NULL,
+        XtOffsetOf(ladybug_database_object, std),
+        &ladybug_database_handlers
     );
     ladybug_connection_ce = ladybug_register_handle_class(
-        LADYBUG_CONNECTION_CLASS, ladybug_connection_create, ladybug_connection_free,
-        ladybug_connection_gc, XtOffsetOf(ladybug_connection_object, std), &ladybug_connection_handlers
+        LADYBUG_CONNECTION_CLASS,
+        ladybug_connection_create,
+        ladybug_connection_free,
+        ladybug_connection_gc,
+        XtOffsetOf(ladybug_connection_object, std),
+        &ladybug_connection_handlers
     );
     ladybug_statement_ce = ladybug_register_handle_class(
-        LADYBUG_STATEMENT_CLASS, ladybug_statement_create, ladybug_statement_free,
-        ladybug_statement_gc, XtOffsetOf(ladybug_statement_object, std), &ladybug_statement_handlers
+        LADYBUG_STATEMENT_CLASS,
+        ladybug_statement_create,
+        ladybug_statement_free,
+        ladybug_statement_gc,
+        XtOffsetOf(ladybug_statement_object, std),
+        &ladybug_statement_handlers
     );
     ladybug_result_ce = ladybug_register_handle_class(
-        LADYBUG_RESULT_CLASS, ladybug_result_create, ladybug_result_free,
-        ladybug_result_gc, XtOffsetOf(ladybug_result_object, std), &ladybug_result_handlers
+        LADYBUG_RESULT_CLASS,
+        ladybug_result_create,
+        ladybug_result_free,
+        ladybug_result_gc,
+        XtOffsetOf(ladybug_result_object, std),
+        &ladybug_result_handlers
     );
 
     /* Exceptions live in the extension's own namespace: the C code stays independent of

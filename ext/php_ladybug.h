@@ -21,7 +21,7 @@
 #include "php.h"
 #include "lbug.h"
 
-#define PHP_LADYBUG_NAME    "ladybug"
+#define PHP_LADYBUG_NAME "ladybug"
 
 /* What phpversion('ladybug') and phpinfo() report, so it has to track the package. It sat at
  * 0.1.0 through three releases without anyone noticing, which did not matter while the only
@@ -86,8 +86,7 @@ extern zend_class_entry *ladybug_exception_ce;
 extern zend_class_entry *ladybug_database_error_ce;
 extern zend_class_entry *ladybug_query_error_ce;
 
-#define LADYBUG_OBJ(type, object) \
-    ((type *) ((char *) (object) - XtOffsetOf(type, std)))
+#define LADYBUG_OBJ(type, object) ((type *) ((char *) (object) - XtOffsetOf(type, std)))
 
 #define LADYBUG_DATABASE_P(zv)   LADYBUG_OBJ(ladybug_database_object, Z_OBJ_P(zv))
 #define LADYBUG_CONNECTION_P(zv) LADYBUG_OBJ(ladybug_connection_object, Z_OBJ_P(zv))
@@ -102,12 +101,12 @@ extern zend_class_entry *ladybug_query_error_ce;
  * within a request and are looked up lazily, then cached here for the rest of it.
  */
 ZEND_BEGIN_MODULE_GLOBALS(ladybug)
-    zend_class_entry *internal_id_ce;
-    zend_class_entry *node_ce;
-    zend_class_entry *rel_ce;
-    zend_class_entry *path_ce;
-    zend_class_entry *datetime_ce;
-    zend_class_entry *dateinterval_ce;
+zend_class_entry *internal_id_ce;
+zend_class_entry *node_ce;
+zend_class_entry *rel_ce;
+zend_class_entry *path_ce;
+zend_class_entry *datetime_ce;
+zend_class_entry *dateinterval_ce;
 ZEND_END_MODULE_GLOBALS(ladybug)
 
 ZEND_EXTERN_MODULE_GLOBALS(ladybug)

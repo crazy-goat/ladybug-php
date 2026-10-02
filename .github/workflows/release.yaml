@@ -10,14 +10,17 @@ name: Release
 # alongside a system libstdc++ dies compiling a std::regex. A shared-linked binary would be
 # smaller and would segfault on any host with intl loaded.
 #
-# ci.yml already runs on tag pushes, so the correctness suites are not repeated here. What this
-# adds are the checks that only apply to a binary someone else will run: the export set, and the
+# ci.yml runs on the default branch (the release gate requires a green ci-ok there), so the
+# correctness suites are not repeated on the tag. What this adds are the checks that only apply to a binary someone else will run: the export set, and the
 # extension working with no liblbug anywhere on the machine.
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -131,7 +134,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: attach to the release
+    name: create the release
     needs: prebuild
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
@@ -153,13 +156,50 @@ jobs:
           ls -1 *.tar.gz | sort | xargs sha256sum > SHA256SUMS
           cat SHA256SUMS
 
-      # The release is normally created by hand with its notes; this only adds the binaries. If
-      # the tag was pushed without one, a bare release is created so the assets have a home
-      # rather than the job failing after twelve successful builds.
-      - name: Upload
+      - name: Extract release notes from CHANGELOG.md
+        # Reads CHANGELOG.md from the tagged commit: merge the `## [X.Y.Z]` section before tagging.
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            /^## \[/ { found = (index($0, "[" v "]") > 0 || index($0, "[v" v "]") > 0); next }
+            /^\[[^]]+\]: / { found = 0 }
+            found
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no non-empty section for ${version}"
+            exit 1
+          fi
+          # GitHub rejects release notes over 125000 characters.
+          python3 - "$GITHUB_REF_NAME" <<'PY'
+          import sys
+          limit = 120000
+          tag = sys.argv[1]
+          text = open('release-notes.md', encoding='utf-8').read()
+          if len(text) > limit:
+              tail = ("\n\n_The notes were shortened because of the GitHub size limit. "
+                      f"See [CHANGELOG.md](https://github.com/crazy-goat/ladybug-php/blob/{tag}/CHANGELOG.md) "
+                      "for the full text._\n")
+              text = text[:limit - len(tail)]
+              text = text[:text.rfind('\n')] + tail
+              open('release-notes.md', 'w', encoding='utf-8').write(text)
+              print(f"::warning::Release notes truncated to {len(text)} characters")
+          PY
+
+      # If the release already exists (created by hand), only the binaries are added to it.
+      - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS --clobber
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS --clobber
+            exit 0
+          fi
+          flags=()
+          case "$GITHUB_REF_NAME" in *-*) flags+=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            "${flags[@]}"

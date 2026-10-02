@@ -49,7 +49,7 @@ jobs:
           - { os: ubuntu-24.04-arm, platform: linux-aarch64 }
           - { os: macos-latest, platform: macos-arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # intl is here on purpose: it links the system libstdc++, which is what turns the INSTALL
       # crash from a theoretical hazard into a segfault. Building and testing without it would
@@ -142,7 +142,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
         with:

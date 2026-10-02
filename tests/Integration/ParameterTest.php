@@ -84,6 +84,66 @@ final class ParameterTest extends IntegrationTestCase
         self::assertSame(-2, $statement->execute(['n' => -1])->fetchOne());
     }
 
+    /**
+     * query() reuses the cached statement, so two independent calls must not share
+     * bindings: the second call fails exactly as a freshly prepared statement would.
+     */
+    public function testACachedQueryDoesNotReuseAnOmittedParameter(): void
+    {
+        self::assertSame(3, $this->connection->query('RETURN $a + $b AS s', ['a' => 1, 'b' => 2])->fetchOne());
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('Parameter b not found.');
+
+        $this->connection->query('RETURN $a + $b AS s', ['a' => 10]);
+    }
+
+    public function testAPreparedStatementDoesNotReuseAnOmittedParameter(): void
+    {
+        $statement = $this->connection->prepare('RETURN $a + $b AS s');
+        self::assertSame(3, $statement->execute(['a' => 1, 'b' => 2])->fetchOne());
+
+        try {
+            $statement->execute(['a' => 10]);
+            self::fail('The omitted parameter b was silently reused.');
+        } catch (QueryException $e) {
+            self::assertSame('Parameter b not found.', $e->getMessage());
+        }
+
+        // The statement stays usable once every parameter is passed again.
+        self::assertSame(15, $statement->execute(['a' => 10, 'b' => 5])->fetchOne());
+    }
+
+    public function testAnOmittedNullParameterIsNotReused(): void
+    {
+        $statement = $this->connection->prepare('RETURN $a AS a, $b AS b');
+        self::assertSame(['a' => 1, 'b' => null], $statement->execute(['a' => 1, 'b' => null])->fetchAll()[0]);
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('Parameter b not found.');
+
+        $statement->execute(['a' => 2]);
+    }
+
+    /** An undeclared name is ignored by liblbug, so omitting it later must still work. */
+    public function testOmittingAnUndeclaredParameterLaterStillWorks(): void
+    {
+        $statement = $this->connection->prepare('RETURN $a AS a');
+
+        self::assertSame(1, $statement->execute(['a' => 1, 'unused' => 2])->fetchOne());
+        self::assertSame(5, $statement->execute(['a' => 5])->fetchOne());
+    }
+
+    /** Starting over from a fresh handle must not break a result that is still being read. */
+    public function testAResultOutlivesTheHandleItCameFrom(): void
+    {
+        $statement = $this->connection->prepare('UNWIND [1, 2, 3] AS x RETURN x * $a AS v');
+        $first = $statement->execute(['a' => 2, 'unused' => 0]);
+
+        self::assertSame(5, $statement->execute(['a' => 5])->fetchOne());
+        self::assertSame([2, 4, 6], array_column($first->fetchAll(), 'v'));
+    }
+
     public function testThePreparedStatementCacheReturnsTheSameInstance(): void
     {
         self::assertSame(

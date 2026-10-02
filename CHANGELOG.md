@@ -36,6 +36,11 @@ requirement the package refuses to run without — see
 
 - Rector's `instanceof` rule failed on `QueryResult::close()`, which kept the `quality` CI step
   red.
+- A reused prepared statement no longer keeps parameters bound by an earlier execution. Because
+  `Connection::query()` caches statements by Cypher text, `query('RETURN $a + $b', ['a' => 10])`
+  after an earlier call with `b` silently returned a result computed with the old `b`. Now every
+  execution sees only the parameters it was given: an omitted parameter fails with liblbug's
+  `Parameter b not found.`, exactly as on a freshly prepared statement. Closes #3.
 
 ## [0.5.0] - 2026-08-17
 

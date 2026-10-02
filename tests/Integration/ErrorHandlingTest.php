@@ -28,6 +28,33 @@ final class ErrorHandlingTest extends IntegrationTestCase
         }
     }
 
+    public function testAFailedPreparedExecutionCarriesTheCypherAndParameters(): void
+    {
+        $cypher = 'RETURN $a AS a, $b AS b';
+        $statement = $this->connection->prepare($cypher);
+
+        try {
+            $statement->execute(['a' => 1]);
+            self::fail('expected a QueryException');
+        } catch (QueryException $e) {
+            self::assertSame($cypher, $e->cypher);
+            self::assertSame(['a' => 1], $e->parameters);
+            self::assertStringContainsString($cypher, (string) $e);
+        }
+    }
+
+    public function testAFailedParameterisedQueryCarriesTheCypher(): void
+    {
+        $cypher = 'RETURN $a AS a, $b AS b';
+
+        try {
+            $this->connection->query($cypher, ['a' => 1]);
+            self::fail('expected a QueryException');
+        } catch (QueryException $e) {
+            self::assertSame($cypher, $e->cypher);
+        }
+    }
+
     public function testAnUnknownTableIsReported(): void
     {
         $this->expectException(QueryException::class);

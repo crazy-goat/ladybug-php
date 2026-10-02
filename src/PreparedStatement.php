@@ -60,9 +60,19 @@ final class PreparedStatement
         // Recorded before execution: a failed bind or query can leave some names bound too.
         $this->boundNames += array_fill_keys(array_keys($parameters), true);
 
+        try {
+            $result = $this->connector->execute($this->connection, $this->handle, $parameters);
+        } catch (QueryException $e) {
+            // The connectors report an execution failure without the statement text, which only
+            // this object holds. Done here once so both connectors behave the same.
+            throw $e->cypher === null
+                ? new QueryException($e->getMessage(), $this->cypher, $e->parameters)
+                : $e;
+        }
+
         return new QueryResult(
             $this->connector,
-            $this->connector->execute($this->connection, $this->handle, $parameters),
+            $result,
             $this->cypher,
             $parameters,
             $this,

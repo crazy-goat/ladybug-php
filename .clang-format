@@ -1,0 +1,28 @@
+# Close to the existing style of ext/: 4 spaces, 100 columns, braces on their own line
+# for functions only, one argument per line when a call does not fit.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+UseTab: Never
+BreakBeforeBraces: Linux
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: true
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCaseColons: false
+AlignConsecutiveMacros: Consecutive
+AlignConsecutiveAssignments: None
+IndentCaseLabels: true
+PointerAlignment: Right
+SortIncludes: Never
+ReflowComments: false
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: BlockIndent
+SpaceAfterCStyleCast: true
+PenaltyReturnTypeOnItsOwnLine: 10000

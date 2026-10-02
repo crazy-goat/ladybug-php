@@ -11,6 +11,32 @@ requirement the package refuses to run without — see
 
 ## [Unreleased]
 
+### Added
+
+- `bin/lint.sh`, the single entry point for every static check: php-cs-fixer, PHPStan, Rector,
+  clang-format on `ext/*.c` and `ext/*.h`, shellcheck on all tracked shell scripts and hadolint
+  on the Dockerfile. `--fix` applies the fixers first. `composer lint`, `composer lint:fix` and
+  `make lint` call it, and `composer ci` now starts with it. Closes #124.
+- `.clang-format` for the C extension. The extension sources were reformatted to match it; no
+  code changed.
+- The shared development process: `docs/workflow.md`, `docs/release-workflow.md`, `AGENTS.md`
+  and the `bin/pick-issue.sh`, `bin/worktree*.sh` scripts, plus Dependabot, a pull request
+  template and issue forms with the standard labels.
+
+### Changed
+
+- CI: the `lint` job installs pinned tools and runs only `bin/lint.sh`; heavy jobs run only for
+  code changes; an aggregate `ci-ok` check is the one to require. CI no longer runs on tag
+  pushes.
+- The release workflow is `release.yaml`: it takes the notes from the `CHANGELOG.md` section of
+  the tag, creates the GitHub Release with `gh release create --verify-tag` and attaches the
+  extension binaries and checksums.
+
+### Fixed
+
+- Rector's `instanceof` rule failed on `QueryResult::close()`, which kept the `quality` CI step
+  red.
+
 ## [0.5.0] - 2026-08-17
 
 Supports liblbug 0.19.x. The API freeze ahead of 1.0.0: what this package promises to keep is

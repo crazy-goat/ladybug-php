@@ -16,6 +16,10 @@ make test-ext           # the integration suite against it
 make ext-test           # the extension's own .phpt suite
 ```
 
+The development process (issues, worktrees, review, release) is described in
+[`docs/workflow.md`](docs/workflow.md); project commands are in [`AGENTS.md`](AGENTS.md).
+Everything — code, comments, docs, commits, issues — is written in English.
+
 ## The one rule
 
 **Anything you change in one connector, change in the other.** The FFI connector converts
@@ -50,7 +54,8 @@ liblbug misbehaved on Linux only, diagnosing it took a throwaway CI branch.
 Before opening a pull request:
 
 ```bash
-composer ci             # style, PHPStan level 8, Rector, tests
+composer ci             # bin/lint.sh (PHP style, PHPStan level 8, Rector, clang-format,
+                        # shellcheck, hadolint), then the tests
 ```
 
 PHPStan runs at level 8 with no baseline, and there are only two ignores, both scoped to

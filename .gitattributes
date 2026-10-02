@@ -10,6 +10,11 @@
 /tests              export-ignore
 /examples           export-ignore
 /ext/tests          export-ignore
+/AGENTS.md          export-ignore
+/bin                export-ignore
+/docs               export-ignore
+/.clang-format      export-ignore
+/.hadolint.yaml     export-ignore
 
 # Line endings: the .phpt format is whitespace-sensitive.
 *.phpt              -text

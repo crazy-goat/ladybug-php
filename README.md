@@ -403,7 +403,7 @@ the parser before binding happens.
 
 ```bash
 composer install
-composer ci            # style, static analysis, refactor check, tests
+composer ci            # bin/lint.sh, then the tests
 ```
 
 | | |
@@ -413,6 +413,7 @@ composer ci            # style, static analysis, refactor check, tests
 | `composer test:ffi` | integration suite against FFI |
 | `composer test:ext` | the same suite against the native extension |
 | `composer test:both` | both backends, back to back |
+| `composer lint` | `bin/lint.sh`: every static check, including clang-format for `ext/` |
 | `composer stan` | PHPStan level 8 |
 | `composer rector` | Rector dry-run |
 | `composer cs:fix` | PHP-CS-Fixer |

@@ -36,7 +36,7 @@ requirement the package refuses to run without — see
 ### Fixed
 
 - A `QueryException` from a failed prepared-statement execution (and so from `Connection::query()`
-  with parameters) now carries the Cypher text, on both connectors. It was `null`. (#134)
+  with parameters) or from a later statement of `queryMultiple()` now carries the Cypher text, on both connectors. It was `null`. (#134)
 - `tools/fetch-liblbug.sh` verifies the archive against a pinned SHA-256 before unpacking it, and
   unpacks into a scratch directory, rejecting absolute or `..` paths and symlinks that leave the
   directory. A version without a pinned digest is refused unless `LIBLBUG_SHA256` is set. (#20)

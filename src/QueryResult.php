@@ -255,7 +255,14 @@ final class QueryResult implements \IteratorAggregate, \Countable, \Stringable
     public function nextResultSet(): ?self
     {
         $this->assertOpen();
-        $next = $this->connector->nextResultSet($this->handle);
+        try {
+            $next = $this->connector->nextResultSet($this->handle);
+        } catch (QueryException $e) {
+            // A later statement of the chain failed; the connectors cannot name its text.
+            throw $e->cypher === null
+                ? new QueryException($e->getMessage(), $this->cypher, $e->parameters)
+                : $e;
+        }
 
         if (!$next instanceof Handle) {
             return null;

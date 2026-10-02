@@ -43,6 +43,32 @@ final class ErrorHandlingTest extends IntegrationTestCase
         }
     }
 
+    public function testAFailedBindKeepsTheParameters(): void
+    {
+        $cypher = 'RETURN $a AS a';
+        $parameters = ['a' => new \stdClass()];
+
+        try {
+            $this->connection->query($cypher, $parameters);
+            self::fail('expected a QueryException');
+        } catch (QueryException $e) {
+            self::assertSame($cypher, $e->cypher);
+            self::assertSame($parameters, $e->parameters);
+        }
+    }
+
+    public function testAFailingLaterStatementOfAChainCarriesTheCypher(): void
+    {
+        $cypher = 'RETURN 1 AS a; MATCH (x:NoSuchTable) RETURN x';
+
+        try {
+            $this->connection->queryMultiple($cypher);
+            self::fail('expected a QueryException');
+        } catch (QueryException $e) {
+            self::assertSame($cypher, $e->cypher);
+        }
+    }
+
     public function testAFailedParameterisedQueryCarriesTheCypher(): void
     {
         $cypher = 'RETURN $a AS a, $b AS b';

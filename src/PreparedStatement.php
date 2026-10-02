@@ -66,7 +66,7 @@ final class PreparedStatement
             // The connectors report an execution failure without the statement text, which only
             // this object holds. Done here once so both connectors behave the same.
             throw $e->cypher === null
-                ? new QueryException($e->getMessage(), $this->cypher, $e->parameters)
+                ? new QueryException($e->getMessage(), $this->cypher, $parameters)
                 : $e;
         }
 

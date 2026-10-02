@@ -17,22 +17,48 @@ final class PreparedStatement
 {
     private bool $closed = false;
 
+    /**
+     * Every name bound by an earlier execution. liblbug keeps a binding until it is
+     * overwritten, so these decide whether the handle can be reused as it is.
+     *
+     * @var array<array-key, true>
+     */
+    private array $boundNames = [];
+
     /** @internal use Connection::prepare() */
     public function __construct(
         private readonly Connector $connector,
-        private readonly Handle $handle,
+        private Handle $handle,
         private readonly Handle $connection,
         public readonly string $cypher,
         /** Kept so the connection outlives this statement; see QueryResult::$owner. */
         private readonly ?object $owner = null,  // @phpstan-ignore property.onlyWritten
     ) {}
 
-    /** @param array<string, mixed> $parameters keyed without the leading '$' */
+    /**
+     * Every execution sees only the parameters passed to it, exactly like a freshly prepared
+     * statement: a parameter bound by an earlier execution and omitted now fails with
+     * liblbug's "Parameter ... not found." instead of silently reusing the old value.
+     *
+     * @param array<string, mixed> $parameters keyed without the leading '$'
+     */
     public function execute(array $parameters = []): QueryResult
     {
         if ($this->closed) {
             throw new QueryException('This prepared statement is closed.', $this->cypher);
         }
+
+        if (array_diff_key($this->boundNames, $parameters) !== []) {
+            // liblbug cannot unbind a parameter, so start over from a fresh handle. Prepare
+            // first: if that fails, the old handle is still intact.
+            $fresh = $this->connector->prepare($this->connection, $this->cypher);
+            $this->connector->closeStatement($this->handle);
+            $this->handle = $fresh;
+            $this->boundNames = [];
+        }
+
+        // Recorded before execution: a failed bind or query can leave some names bound too.
+        $this->boundNames += array_fill_keys(array_keys($parameters), true);
 
         return new QueryResult(
             $this->connector,

@@ -193,7 +193,9 @@ $connection->interrupt();
 ```
 
 `query()` without parameters uses liblbug's direct path; with parameters it prepares and
-caches the statement, so a loop over bound values re-plans nothing.
+caches the statement, so a loop over bound values re-plans nothing. Each execution sees only
+the parameters passed to it: leaving out one that an earlier call bound fails with
+`Parameter … not found.`, as on a fresh statement (the statement is then prepared again).
 
 ### Bulk loading
 

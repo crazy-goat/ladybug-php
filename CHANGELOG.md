@@ -13,6 +13,7 @@ requirement the package refuses to run without — see
 
 ### Added
 
+- `PreparedStatement::isClosed()`, like `Connection::isClosed()` and `Database::isClosed()`. (#5)
 - `bin/lint.sh`, the single entry point for every static check: php-cs-fixer, PHPStan, Rector,
   clang-format on `ext/*.c` and `ext/*.h`, shellcheck on all tracked shell scripts and hadolint
   on the Dockerfile. `--fix` applies the fixers first. `composer lint`, `composer lint:fix` and
@@ -41,6 +42,12 @@ requirement the package refuses to run without — see
   after an earlier call with `b` silently returned a result computed with the old `b`. Now every
   execution sees only the parameters it was given: an omitted parameter fails with liblbug's
   `Parameter b not found.`, exactly as on a freshly prepared statement. Closes #3.
+- The statement cache no longer serves dead statements. A statement closed with
+  `PreparedStatement::close()` was returned again by every later `prepare()` or `query()` with
+  the same Cypher text, which failed with `This prepared statement is closed.`; now it is prepared
+  again. And the 65th cached statement closed the oldest one on eviction, even when the caller
+  still held it or was streaming its result; now an evicted statement stays open until nothing
+  refers to it or the connection closes. Closes #5.
 
 ## [0.5.0] - 2026-08-17
 

@@ -53,6 +53,29 @@ final class LifecycleTest extends IntegrationTestCase
         self::assertSame(1, $count);
     }
 
+    public function testAClosedStatementIsNotServedFromTheCache(): void
+    {
+        $this->connection->prepare('RETURN $n')->close();
+
+        self::assertSame(7, $this->connection->prepare('RETURN $n')->execute(['n' => 7])->fetchOne());
+        self::assertSame(8, $this->connection->query('RETURN $n', ['n' => 8])->fetchOne());
+    }
+
+    public function testAnEvictedStatementStillWorksForItsHolder(): void
+    {
+        $held = $this->connection->prepare('RETURN $n');
+        $result = $held->execute(['n' => 1]);
+        for ($i = 0; $i < 64; ++$i) {
+            $this->connection->prepare("RETURN {$i}");
+        }
+
+        self::assertSame(1, $result->fetchOne());
+        self::assertSame(2, $held->execute(['n' => 2])->fetchOne());
+
+        $this->connection->close();
+        self::assertTrue($held->isClosed());
+    }
+
     public function testSeveralConnectionsShareOneDatabase(): void
     {
         $this->createPersonSchema();

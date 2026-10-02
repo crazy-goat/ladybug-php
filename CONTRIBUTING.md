@@ -68,7 +68,9 @@ The version is stated in four places on purpose — they cannot share a constant
 
 1. `Ladybug\Connector\LibraryVersion::VERIFIED` and `SUPPORTED_SERIES`
 2. `LADYBUG_LIBLBUG_VERIFIED` and `LADYBUG_LIBLBUG_SERIES` in `ext/php_ladybug.h`
-3. the default in `tools/fetch-liblbug.sh`
+3. the default in `tools/fetch-liblbug.sh`, together with the pinned SHA-256 of every archive
+   in its `pinned_sha256` table (take them from `gh release view v<version> -R LadybugDB/ladybug
+   --json assets`; the script refuses an archive it has no digest for)
 4. `LIBLBUG_VERSION` in `.github/workflows/ci.yml`
 
 For a new patch release inside a supported series, update 1, 3 and 4. For a **new minor**,

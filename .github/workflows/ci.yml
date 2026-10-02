@@ -103,7 +103,7 @@ jobs:
         run: composer install --no-interaction --no-progress
 
       - name: Cache liblbug
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: lib
           key: liblbug-${{ env.LIBLBUG_VERSION }}-${{ runner.os }}-${{ runner.arch }}

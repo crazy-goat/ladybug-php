@@ -62,14 +62,14 @@ jobs:
       - name: Install clang-format, shellcheck and hadolint
         run: |
           set -euo pipefail
-          pip install --user clang-format==23.1.2
+          pipx install clang-format==23.1.2
           mkdir -p "$HOME/.local/bin"
           curl -fsSL https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz \
             | tar -xJ --strip-components=1 -C "$HOME/.local/bin" shellcheck-v0.11.0/shellcheck
           curl -fsSL -o "$HOME/.local/bin/hadolint" https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
           chmod +x "$HOME/.local/bin/hadolint"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          clang-format --version
+          "$HOME/.local/bin/clang-format" --version
           "$HOME/.local/bin/shellcheck" --version
           "$HOME/.local/bin/hadolint" --version
 

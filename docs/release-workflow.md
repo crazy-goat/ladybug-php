@@ -58,12 +58,20 @@ git push origin vX.Y.Z
 
 ## 5. GitHub Release
 
-Pushing the tag starts `.github/workflows/release.yml`, which calls the shared
-workflow from `crazy-goat/.github`. It creates the GitHub Release with the notes
-from the matching `CHANGELOG.md` section, and fails when the section is missing.
+Pushing the tag starts `.github/workflows/release.yaml`. GitHub runs the workflow
+file from the **tagged commit**, so the release PR with the `## [X.Y.Z]` section
+must be **merged before** you tag.
 
-Repositories that build binaries or images run their build first. Only the last
-step (creating the release) is shared.
+The workflow builds the static prebuilt binaries (4 PHP versions x 3 platforms = 12
+`.tar.gz` files), verifies each one (export set and a clean-room check with no liblbug on
+the machine), and writes a `SHA256SUMS` file. It then creates the GitHub Release with
+`gh release create`, using the notes from the matching `CHANGELOG.md` section, and
+attaches the binaries. It fails when the section is missing or empty. Tags with a `-`
+(for example `v0.9.0-rc.1`) become pre-releases. If the release already exists, the
+workflow only uploads the assets to it.
+
+GitHub rejects release notes longer than 125000 characters. The workflow cuts the notes
+below 120000 characters at a line boundary and adds a link to `CHANGELOG.md` at the tag.
 
 ```bash
 gh run watch

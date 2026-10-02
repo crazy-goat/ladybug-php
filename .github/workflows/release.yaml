@@ -11,8 +11,9 @@ name: Release
 # smaller and would segfault on any host with intl loaded.
 #
 # ci.yml runs on the default branch (the release gate requires a green ci-ok there), so the
-# correctness suites are not repeated on the tag. What this adds are the checks that only apply to a binary someone else will run: the export set, and the
-# extension working with no liblbug anywhere on the machine.
+# correctness suites are not repeated on the tag. What this adds are the checks that only apply
+# to a binary someone else will run: the export set, and the extension working with no liblbug
+# anywhere on the machine.
 
 on:
   push:

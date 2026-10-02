@@ -26,6 +26,14 @@ final class Connection
     /** @var array<string, PreparedStatement> */
     private array $statementCache = [];
 
+    /**
+     * Every statement prepared here that is still alive, cached or not. An evicted statement
+     * may still be held by its caller, and close() must free it before the connection.
+     *
+     * @var \WeakMap<PreparedStatement, true>
+     */
+    private \WeakMap $statements;
+
     private bool $closed = false;
 
     /** @internal use Database::connect() */
@@ -33,7 +41,9 @@ final class Connection
         private readonly Connector $connector,
         private readonly Handle $handle,
         private readonly Database $database,
-    ) {}
+    ) {
+        $this->statements = new \WeakMap();
+    }
 
     /**
      * Runs a query and returns its result. With parameters it prepares (and caches) the
@@ -93,18 +103,22 @@ final class Connection
         $this->assertOpen();
 
         if (isset($this->statementCache[$cypher])) {
-            // Refresh LRU position.
             $statement = $this->statementCache[$cypher];
             unset($this->statementCache[$cypher]);
-            $this->statementCache[$cypher] = $statement;
 
-            return $statement;
+            // A statement the caller closed is useless; prepare it again below.
+            if (!$statement->isClosed()) {
+                // Refresh LRU position.
+                $this->statementCache[$cypher] = $statement;
+
+                return $statement;
+            }
         }
 
         if (\count($this->statementCache) >= self::STATEMENT_CACHE_SIZE) {
-            $oldest = array_key_first($this->statementCache);
-            $this->statementCache[$oldest]->close();
-            unset($this->statementCache[$oldest]);
+            // Evicted, not closed: the caller may still hold the statement or stream a result
+            // from it. Once nothing does, its destructor frees it.
+            unset($this->statementCache[array_key_first($this->statementCache)]);
         }
 
         $statement = new PreparedStatement(
@@ -114,6 +128,7 @@ final class Connection
             $cypher,
             $this,
         );
+        $this->statements[$statement] = true;
 
         return $this->statementCache[$cypher] = $statement;
     }
@@ -360,7 +375,7 @@ final class Connection
 
         $this->closed = true;
 
-        foreach ($this->statementCache as $statement) {
+        foreach ($this->statements as $statement => $_) {
             $statement->close();
         }
 

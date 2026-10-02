@@ -67,6 +67,56 @@ final class ConnectionTest extends TestCase
         self::assertContains('closeStatement', $this->connector->calls, 'an evicted statement is freed');
     }
 
+    public function testAStatementTheCallerClosedIsPreparedAgain(): void
+    {
+        $closed = $this->connection->prepare('RETURN $n');
+        $closed->close();
+
+        $fresh = $this->connection->prepare('RETURN $n');
+
+        self::assertNotSame($closed, $fresh);
+        self::assertFalse($fresh->isClosed());
+        self::assertSame(2, array_count_values($this->connector->calls)['prepare(RETURN $n)']);
+
+        $this->connection->query('RETURN $n', ['n' => 1]);
+        self::assertContains('execute({"n":1})', $this->connector->calls);
+    }
+
+    public function testEvictionDoesNotCloseAStatementTheCallerStillHolds(): void
+    {
+        $held = $this->connection->prepare('RETURN $n');
+        for ($i = 0; $i < 64; ++$i) {
+            $this->connection->prepare("RETURN {$i}");
+        }
+
+        self::assertFalse($held->isClosed());
+        self::assertNotContains('closeStatement', $this->connector->calls);
+
+        $held->execute(['n' => 1]);
+        self::assertContains('execute({"n":1})', $this->connector->calls);
+
+        // It left the cache, so the same Cypher text is prepared again.
+        self::assertNotSame($held, $this->connection->prepare('RETURN $n'));
+    }
+
+    public function testClosingTheConnectionClosesAnEvictedStatementTheCallerStillHolds(): void
+    {
+        $held = $this->connection->prepare('RETURN $n');
+        for ($i = 0; $i < 64; ++$i) {
+            $this->connection->prepare("RETURN {$i}");
+        }
+
+        $this->connection->close();
+
+        self::assertTrue($held->isClosed());
+        $calls = $this->connector->calls;
+        self::assertLessThan(
+            array_search('closeConnection', $calls, true),
+            array_search('closeStatement', $calls, true),
+            'statements are freed before their connection',
+        );
+    }
+
     public function testRunReturnsTheRowCountAndReleasesTheResult(): void
     {
         $this->connector->rows = [[1], [2], [3]];

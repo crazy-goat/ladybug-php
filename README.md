@@ -197,6 +197,11 @@ caches the statement, so a loop over bound values re-plans nothing. Each executi
 the parameters passed to it: leaving out one that an earlier call bound fails with
 `Parameter … not found.`, as on a fresh statement (the statement is then prepared again).
 
+The cache never hands out a dead statement. A statement you `close()` is prepared again on the
+next `prepare()` or `query()` with the same text. When the 65th statement pushes the oldest out
+of the cache, that one is not closed: whoever still holds it (or a result from it) can keep
+using it, and it is freed when nothing refers to it any more, or when the connection closes.
+
 ### Bulk loading
 
 `copyInto()` spools the rows to a temporary CSV and hands them to liblbug's own `COPY FROM`,

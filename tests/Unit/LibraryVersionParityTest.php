@@ -56,6 +56,32 @@ final class LibraryVersionParityTest extends TestCase
         self::assertSame(LibraryVersion::VERIFIED, $m[1]);
     }
 
+    public function testTheDownloadScriptPinsAChecksumForEveryArchiveOfTheVerifiedVersion(): void
+    {
+        $script = $this->read('tools/fetch-liblbug.sh');
+        $version = LibraryVersion::VERIFIED;
+        $platforms = ['linux-aarch64', 'linux-x86_64', 'osx-arm64', 'osx-x86_64'];
+        $archives = [];
+
+        foreach ($platforms as $platform) {
+            $archives[] = "liblbug-{$platform}";
+            // The static Linux builds carry a -compat/-perf suffix, the macOS ones do not.
+            $suffixes = str_starts_with($platform, 'linux-') ? ['-compat', '-perf'] : [''];
+
+            foreach ($suffixes as $suffix) {
+                $archives[] = "liblbug-static-{$platform}{$suffix}";
+            }
+        }
+
+        foreach ($archives as $archive) {
+            self::assertMatchesRegularExpression(
+                '/"' . preg_quote("{$version}/{$archive}.tar.gz", '/') . '"\)\s+echo "[0-9a-f]{64}"/',
+                $script,
+                "tools/fetch-liblbug.sh pins no SHA-256 for {$archive} {$version}.",
+            );
+        }
+    }
+
     public function testCiInstallsTheVerifiedVersion(): void
     {
         $workflow = $this->read('.github/workflows/ci.yml');

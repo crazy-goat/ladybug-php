@@ -73,6 +73,7 @@ COPY . .
 #
 # The check reads the PSR-4 map rather than loading a test class: those extend PHPUnit classes,
 # which exist only inside the phar's own runtime.
+# hadolint ignore=SC2016
 RUN composer dump-autoload --dev --no-interaction \
     && php -r '$m = require "vendor/composer/autoload_psr4.php"; exit(isset($m["Ladybug\\Tests\\"]) ? 0 : 1);'
 

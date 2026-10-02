@@ -1,6 +1,6 @@
 name: Bug report
 description: Something behaves differently than documented
-labels: [bug]
+labels: ["type:bug"]
 body:
   - type: markdown
     attributes:
@@ -67,3 +67,20 @@ body:
         Stack trace, `ConnectorFactory::diagnostics()` output, or whether the same code
         behaves differently on the other backend (`LADYBUG_CONNECTOR=ffi` / `=ext`) — that
         last one is the single most useful thing you can include.
+
+  - type: textarea
+    id: where
+    attributes:
+      label: Where to start
+      description: Files that are probably involved and the command that runs the related tests. Maintainers fill this in for `good first issue`.
+    validations:
+      required: false
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: How do we know it is fixed?
+      placeholder: "- [ ] A test reproduces the bug and now passes"
+    validations:
+      required: false

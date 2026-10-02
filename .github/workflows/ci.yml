@@ -3,13 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   LIBLBUG_VERSION: '0.19.1'
@@ -19,10 +22,25 @@ env:
   COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
 
 jobs:
-  # Style, static analysis and the refactor check. One PHP version is enough — these
-  # tools do not vary across runtimes, and the matrix below covers the code paths.
-  quality:
-    name: quality (php 8.2)
+  changes:
+    name: Changes
+    uses: crazy-goat/.github/.github/workflows/changes.yml@main
+    with:
+      # tests/Unit/ExtensionVersionTest.php reads CHANGELOG.md, so a change to it needs the
+      # unit tests and must not count as docs-only. Other Markdown files are not read by tests.
+      docs-regex: '^((README|CONTRIBUTING|AGENTS)\.md|docs/.*|LICENSE.*|\.github/ISSUE_TEMPLATE/.*|\.github/pull_request_template\.md|\.gitignore)$'
+
+  docs:
+    name: Docs
+    uses: crazy-goat/.github/.github/workflows/docs-check.yml@main
+
+  # Setup only; every check lives in bin/lint.sh (php-cs-fixer, PHPStan, Rector, clang-format,
+  # shellcheck, hadolint). One PHP version is enough — these tools do not vary across runtimes,
+  # and the matrix below covers the code paths.
+  lint:
+    name: lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,19 +58,30 @@ jobs:
       - name: Fetch liblbug
         run: bash tools/fetch-liblbug.sh "$LIBLBUG_VERSION"
 
-      - name: PHP-CS-Fixer
-        run: vendor/bin/php-cs-fixer fix --dry-run --diff
+      # Pinned: the versions the image ships would change under us without a commit here.
+      - name: Install clang-format, shellcheck and hadolint
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          PIPX_BIN_DIR="$HOME/.local/bin" pipx install clang-format==23.1.2
+          curl -fsSL https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz \
+            | tar -xJ --strip-components=1 -C "$HOME/.local/bin" shellcheck-v0.11.0/shellcheck
+          curl -fsSL -o "$HOME/.local/bin/hadolint" https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          chmod +x "$HOME/.local/bin/hadolint"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/clang-format" --version
+          "$HOME/.local/bin/shellcheck" --version
+          "$HOME/.local/bin/hadolint" --version
 
-      - name: PHPStan
-        run: vendor/bin/phpstan analyse --no-progress
-
-      - name: Rector
-        run: vendor/bin/rector process --dry-run --no-progress-bar
+      - name: Lint
+        run: bin/lint.sh
 
   # The point of the two-connector design: the same integration suite has to pass on both
   # backends, on every supported runtime. A divergence in value conversion shows up here.
   test:
     name: php ${{ matrix.php }} / ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -106,6 +135,8 @@ jobs:
   # other connector as dead code — neither number on its own describes the library.
   coverage:
     name: coverage (php 8.3)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       # A ratchet, not a target: set just below the current number and raised when it
@@ -158,6 +189,8 @@ jobs:
   # dyld has no such flag, so the same setup works there unchanged.
   sanitizer:
     name: AddressSanitizer (php 8.3, macOS)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -188,6 +221,8 @@ jobs:
   # ~80 MB, which is why this is not part of the matrix.
   static-link:
     name: static liblbug (php 8.3)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -221,3 +256,26 @@ jobs:
 
       - name: Extension .phpt tests
         run: make ext-test
+
+  ci-ok:
+    name: ci-ok
+    needs: [changes, docs, lint, test, coverage, sanitizer, static-link]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          CODE: ${{ needs.changes.outputs.code }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Code changes: $CODE"
+          echo "Results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in failure|cancelled) exit 1 ;; esac
+          done
+          # Documentation-only changes skip the heavy jobs; code changes need all of them.
+          if [ "$CODE" = "true" ]; then
+            for r in $RESULTS; do
+              [ "$r" = "success" ] || exit 1
+            done
+          fi

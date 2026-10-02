@@ -9,3 +9,7 @@ composer.lock
 # deadlocked the next release — the script refuses to publish from a dirty tree, and its own
 # output was what made the tree dirty.
 /build/
+# Worktree process files (bin/worktree.sh)
+/findings.md
+/review.md
+/.env.worktree

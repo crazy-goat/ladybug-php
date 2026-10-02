@@ -135,7 +135,9 @@ static void ladybug_int128_to_zval(lbug_int128_t value, zval *out)
     ZVAL_STRING(out, buffer + position);
 }
 
-static int ladybug_string_to_zval(lbug_value *value, zval *out, lbug_state (*getter)(lbug_value *, char **))
+static int ladybug_string_to_zval(
+    lbug_value *value, zval *out, lbug_state (*getter)(lbug_value *, char **)
+)
 {
     char *owned = NULL;
     zend_string *result;
@@ -213,14 +215,20 @@ static int ladybug_datetime_to_zval(int64_t seconds, int32_t micros, zval *out)
         return FAILURE;
     }
 
-    ZVAL_STR(&argument, strpprintf(0, "%04d-%02d-%02d %02d:%02d:%02d.%06d UTC",
-        parts.tm_year + 1900,
-        parts.tm_mon + 1,
-        parts.tm_mday,
-        parts.tm_hour,
-        parts.tm_min,
-        parts.tm_sec,
-        micros));
+    ZVAL_STR(
+        &argument,
+        strpprintf(
+            0,
+            "%04d-%02d-%02d %02d:%02d:%02d.%06d UTC",
+            parts.tm_year + 1900,
+            parts.tm_mon + 1,
+            parts.tm_mday,
+            parts.tm_hour,
+            parts.tm_min,
+            parts.tm_sec,
+            micros
+        )
+    );
 
     status = ladybug_new_instance(ce, out, 1, &argument);
     zval_ptr_dtor(&argument);
@@ -229,20 +237,21 @@ static int ladybug_datetime_to_zval(int64_t seconds, int32_t micros, zval *out)
 }
 
 /* Splits a raw count into whole seconds plus a positive microsecond remainder. */
-static int ladybug_split_timestamp(int64_t raw, int64_t per_second, int64_t *seconds, int32_t *micros)
+static int ladybug_split_timestamp(
+    int64_t raw, int64_t per_second, int64_t *seconds, int32_t *micros
+)
 {
     int64_t fraction;
 
     *seconds = raw / per_second;
     fraction = raw - *seconds * per_second;
-    if (fraction < 0) {  /* C division truncates toward zero; keep the remainder positive */
+    if (fraction < 0) { /* C division truncates toward zero; keep the remainder positive */
         --*seconds;
         fraction += per_second;
     }
 
-    *micros = per_second >= 1000000
-        ? (int32_t) (fraction / (per_second / 1000000))
-        : (int32_t) (fraction * (1000000 / per_second));
+    *micros = per_second >= 1000000 ? (int32_t) (fraction / (per_second / 1000000))
+                                    : (int32_t) (fraction * (1000000 / per_second));
 
     return SUCCESS;
 }
@@ -269,35 +278,45 @@ static int ladybug_timestamp_to_zval(lbug_value *value, lbug_data_type_id type, 
     switch (type) {
         case LBUG_TIMESTAMP: {
             lbug_timestamp_t ts;
-            if (lbug_value_get_timestamp(value, &ts) != LbugSuccess) { goto failed; }
+            if (lbug_value_get_timestamp(value, &ts) != LbugSuccess) {
+                goto failed;
+            }
             raw = ts.value;
             per_second = 1000000;
             break;
         }
         case LBUG_TIMESTAMP_TZ: {
             lbug_timestamp_tz_t ts;
-            if (lbug_value_get_timestamp_tz(value, &ts) != LbugSuccess) { goto failed; }
+            if (lbug_value_get_timestamp_tz(value, &ts) != LbugSuccess) {
+                goto failed;
+            }
             raw = ts.value;
             per_second = 1000000;
             break;
         }
         case LBUG_TIMESTAMP_MS: {
             lbug_timestamp_ms_t ts;
-            if (lbug_value_get_timestamp_ms(value, &ts) != LbugSuccess) { goto failed; }
+            if (lbug_value_get_timestamp_ms(value, &ts) != LbugSuccess) {
+                goto failed;
+            }
             raw = ts.value;
             per_second = 1000;
             break;
         }
         case LBUG_TIMESTAMP_SEC: {
             lbug_timestamp_sec_t ts;
-            if (lbug_value_get_timestamp_sec(value, &ts) != LbugSuccess) { goto failed; }
+            if (lbug_value_get_timestamp_sec(value, &ts) != LbugSuccess) {
+                goto failed;
+            }
             raw = ts.value;
             per_second = 1;
             break;
         }
         case LBUG_TIMESTAMP_NS: {
             lbug_timestamp_ns_t ts;
-            if (lbug_value_get_timestamp_ns(value, &ts) != LbugSuccess) { goto failed; }
+            if (lbug_value_get_timestamp_ns(value, &ts) != LbugSuccess) {
+                goto failed;
+            }
             raw = ts.value;
             per_second = 1000000000;
             break;
@@ -351,7 +370,9 @@ static int ladybug_interval_to_zval(lbug_value *value, zval *out)
     zend_update_property_long(ce, Z_OBJ_P(out), "i", 1, (zend_long) (micros / 60000000LL));
     micros %= 60000000LL;
     zend_update_property_long(ce, Z_OBJ_P(out), "s", 1, (zend_long) (micros / 1000000LL));
-    zend_update_property_double(ce, Z_OBJ_P(out), "f", 1, (double) (micros % 1000000LL) / 1000000.0);
+    zend_update_property_double(
+        ce, Z_OBJ_P(out), "f", 1, (double) (micros % 1000000LL) / 1000000.0
+    );
 
     if (EG(exception)) {
         zval_ptr_dtor(out);
@@ -366,7 +387,8 @@ static int ladybug_interval_to_zval(lbug_value *value, zval *out)
 
 static int ladybug_internal_id_to_zval(lbug_internal_id_t id, zval *out)
 {
-    zend_class_entry *ce = ladybug_lookup_class(&LADYBUG_G(internal_id_ce), "Ladybug\\Type\\InternalId");
+    zend_class_entry *ce =
+        ladybug_lookup_class(&LADYBUG_G(internal_id_ce), "Ladybug\\Type\\InternalId");
     zval arguments[2];
     int status;
 
@@ -393,10 +415,9 @@ static int ladybug_read_internal_id(lbug_value *value, lbug_internal_id_t *out)
 
 /* Reads an INTERNAL_ID sub-value, freeing the intermediate lbug_value either way. */
 static int ladybug_id_of(
-    lbug_value *value,
-    lbug_state (*getter)(lbug_value *, lbug_value *),
-    zval *out
-) {
+    lbug_value *value, lbug_state (*getter)(lbug_value *, lbug_value *), zval *out
+)
+{
     lbug_value child;
     int status;
 
@@ -421,10 +442,9 @@ static int ladybug_id_of(
 }
 
 static int ladybug_label_of(
-    lbug_value *value,
-    lbug_state (*getter)(lbug_value *, lbug_value *),
-    zval *out
-) {
+    lbug_value *value, lbug_state (*getter)(lbug_value *, lbug_value *), zval *out
+)
+{
     lbug_value child;
     int status;
 
@@ -462,7 +482,9 @@ static int ladybug_list_to_zval(lbug_value *value, zval *out)
         zval converted;
 
         if (lbug_value_get_list_element(value, index, &element) != LbugSuccess) {
-            ladybug_throw(ladybug_exception_ce, "Could not read element %" PRIu64 " of a LIST value.", index);
+            ladybug_throw(
+                ladybug_exception_ce, "Could not read element %" PRIu64 " of a LIST value.", index
+            );
             zval_ptr_dtor(out);
             ZVAL_UNDEF(out);
             return FAILURE;
@@ -498,7 +520,11 @@ static int ladybug_struct_to_zval(lbug_value *value, zval *out)
         zval converted;
 
         if (lbug_value_get_struct_field_name(value, index, &owned_name) != LbugSuccess) {
-            ladybug_throw(ladybug_exception_ce, "Could not read field name %" PRIu64 " of a STRUCT value.", index);
+            ladybug_throw(
+                ladybug_exception_ce,
+                "Could not read field name %" PRIu64 " of a STRUCT value.",
+                index
+            );
             goto failed;
         }
         name = ladybug_take_string(owned_name);
@@ -508,7 +534,9 @@ static int ladybug_struct_to_zval(lbug_value *value, zval *out)
         }
         if (lbug_value_get_struct_field_value(value, index, &field) != LbugSuccess) {
             zend_string_release(name);
-            ladybug_throw(ladybug_exception_ce, "Could not read field %" PRIu64 " of a STRUCT value.", index);
+            ladybug_throw(
+                ladybug_exception_ce, "Could not read field %" PRIu64 " of a STRUCT value.", index
+            );
             goto failed;
         }
         if (ladybug_value_to_zval(&field, &converted) != SUCCESS) {
@@ -555,7 +583,9 @@ static int ladybug_map_to_zval(lbug_value *value, zval *out)
         zval pair;
 
         if (lbug_value_get_map_key(value, index, &key_value) != LbugSuccess) {
-            ladybug_throw(ladybug_exception_ce, "Could not read key %" PRIu64 " of a MAP value.", index);
+            ladybug_throw(
+                ladybug_exception_ce, "Could not read key %" PRIu64 " of a MAP value.", index
+            );
             goto failed;
         }
         if (ladybug_value_to_zval(&key_value, &key) != SUCCESS) {
@@ -566,7 +596,9 @@ static int ladybug_map_to_zval(lbug_value *value, zval *out)
 
         if (lbug_value_get_map_value(value, index, &entry_value) != LbugSuccess) {
             zval_ptr_dtor(&key);
-            ladybug_throw(ladybug_exception_ce, "Could not read value %" PRIu64 " of a MAP value.", index);
+            ladybug_throw(
+                ladybug_exception_ce, "Could not read value %" PRIu64 " of a MAP value.", index
+            );
             goto failed;
         }
         if (ladybug_value_to_zval(&entry_value, &entry) != SUCCESS) {
@@ -595,7 +627,8 @@ static int ladybug_map_to_zval(lbug_value *value, zval *out)
     array_init_size(out, (uint32_t) size);
     {
         zval *pair;
-        ZEND_HASH_FOREACH_VAL(Z_ARRVAL(pairs), pair) {
+        ZEND_HASH_FOREACH_VAL(Z_ARRVAL(pairs), pair)
+        {
             zval *key = zend_hash_str_find(Z_ARRVAL_P(pair), "key", 3);
             zval *entry = zend_hash_str_find(Z_ARRVAL_P(pair), "value", 5);
 
@@ -608,7 +641,8 @@ static int ladybug_map_to_zval(lbug_value *value, zval *out)
             } else {
                 zend_symtable_update(Z_ARRVAL_P(out), Z_STR_P(key), entry);
             }
-        } ZEND_HASH_FOREACH_END();
+        }
+        ZEND_HASH_FOREACH_END();
     }
     zval_ptr_dtor(&pairs);
 
@@ -626,7 +660,8 @@ static int ladybug_properties_to_zval(
     lbug_state (*name_getter)(lbug_value *, uint64_t, char **),
     lbug_state (*value_getter)(lbug_value *, uint64_t, lbug_value *),
     zval *out
-) {
+)
+{
     uint64_t count = 0;
     uint64_t index;
 
@@ -687,12 +722,14 @@ static zval *ladybug_path_field(HashTable *fields, const char *name)
     zend_string *key;
     zval *entry;
 
-    ZEND_HASH_FOREACH_STR_KEY_VAL(fields, key, entry) {
-        if (key != NULL && zend_binary_strcasecmp(
-                ZSTR_VAL(key), ZSTR_LEN(key), name, strlen(name)) == 0) {
+    ZEND_HASH_FOREACH_STR_KEY_VAL(fields, key, entry)
+    {
+        if (key != NULL &&
+            zend_binary_strcasecmp(ZSTR_VAL(key), ZSTR_LEN(key), name, strlen(name)) == 0) {
             return entry;
         }
-    } ZEND_HASH_FOREACH_END();
+    }
+    ZEND_HASH_FOREACH_END();
 
     return NULL;
 }
@@ -700,7 +737,9 @@ static zval *ladybug_path_field(HashTable *fields, const char *name)
 /* Copies one field into *out as a list, checking that every entry is of the expected class.
  * Without that check a changed path shape would build a wrong Path here while the FFI reader
  * threw — and a divergence between the backends is exactly what must not happen. */
-static int ladybug_path_members(HashTable *fields, const char *name, zend_class_entry *expected, zval *out)
+static int ladybug_path_members(
+    HashTable *fields, const char *name, zend_class_entry *expected, zval *out
+)
 {
     zval *field = ladybug_path_field(fields, name);
     zval *entry;
@@ -715,7 +754,8 @@ static int ladybug_path_members(HashTable *fields, const char *name, zend_class_
         return FAILURE;
     }
 
-    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(field), entry) {
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(field), entry)
+    {
         if (Z_TYPE_P(entry) != IS_OBJECT || !instanceof_function(Z_OBJCE_P(entry), expected)) {
             ladybug_throw(
                 ladybug_exception_ce,
@@ -725,7 +765,8 @@ static int ladybug_path_members(HashTable *fields, const char *name, zend_class_
             );
             return FAILURE;
         }
-    } ZEND_HASH_FOREACH_END();
+    }
+    ZEND_HASH_FOREACH_END();
 
     ZVAL_COPY(out, field);
 
@@ -893,126 +934,140 @@ int ladybug_value_to_zval(lbug_value *value, zval *out)
     switch (type_id) {
         case LBUG_BOOL: {
             bool result = false;
-            if (lbug_value_get_bool(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_bool(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_BOOL(out, result);
             return SUCCESS;
         }
         case LBUG_INT8: {
             int8_t result = 0;
-            if (lbug_value_get_int8(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_int8(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, result);
             return SUCCESS;
         }
         case LBUG_INT16: {
             int16_t result = 0;
-            if (lbug_value_get_int16(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_int16(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, result);
             return SUCCESS;
         }
         case LBUG_INT32: {
             int32_t result = 0;
-            if (lbug_value_get_int32(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_int32(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, result);
             return SUCCESS;
         }
         case LBUG_INT64:
         case LBUG_SERIAL: {
             int64_t result = 0;
-            if (lbug_value_get_int64(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_int64(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, (zend_long) result);
             return SUCCESS;
         }
         case LBUG_UINT8: {
             uint8_t result = 0;
-            if (lbug_value_get_uint8(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_uint8(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, result);
             return SUCCESS;
         }
         case LBUG_UINT16: {
             uint16_t result = 0;
-            if (lbug_value_get_uint16(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_uint16(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, result);
             return SUCCESS;
         }
         case LBUG_UINT32: {
             uint32_t result = 0;
-            if (lbug_value_get_uint32(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_uint32(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_LONG(out, result);
             return SUCCESS;
         }
         case LBUG_UINT64: {
             uint64_t result = 0;
-            if (lbug_value_get_uint64(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_uint64(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ladybug_uint64_to_zval(result, out);
             return SUCCESS;
         }
         case LBUG_INT128: {
             lbug_int128_t result = {0, 0};
-            if (lbug_value_get_int128(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_int128(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ladybug_int128_to_zval(result, out);
             return SUCCESS;
         }
         case LBUG_FLOAT: {
             float result = 0;
-            if (lbug_value_get_float(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_float(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_DOUBLE(out, (double) result);
             return SUCCESS;
         }
         case LBUG_DOUBLE: {
             double result = 0;
-            if (lbug_value_get_double(value, &result) != LbugSuccess) { goto read_failed; }
+            if (lbug_value_get_double(value, &result) != LbugSuccess) {
+                goto read_failed;
+            }
             ZVAL_DOUBLE(out, result);
             return SUCCESS;
         }
-        case LBUG_STRING:
-            return ladybug_string_to_zval(value, out, lbug_value_get_string);
-        case LBUG_UUID:
-            return ladybug_string_to_zval(value, out, lbug_value_get_uuid);
+        case LBUG_STRING: return ladybug_string_to_zval(value, out, lbug_value_get_string);
+        case LBUG_UUID:   return ladybug_string_to_zval(value, out, lbug_value_get_uuid);
         case LBUG_DECIMAL:
             /* Never a float: DECIMAL keeps its scale as a numeric string. */
             return ladybug_string_to_zval(value, out, lbug_value_get_decimal_as_string);
-        case LBUG_BLOB:
-            return ladybug_blob_to_zval(value, out);
-        case LBUG_DATE:
-            return ladybug_date_to_zval(value, out);
+        case LBUG_BLOB:          return ladybug_blob_to_zval(value, out);
+        case LBUG_DATE:          return ladybug_date_to_zval(value, out);
         case LBUG_TIMESTAMP:
         case LBUG_TIMESTAMP_TZ:
         case LBUG_TIMESTAMP_MS:
         case LBUG_TIMESTAMP_SEC:
-        case LBUG_TIMESTAMP_NS:
-            return ladybug_timestamp_to_zval(value, type_id, out);
-        case LBUG_INTERVAL:
-            return ladybug_interval_to_zval(value, out);
-        case LBUG_INTERNAL_ID: {
+        case LBUG_TIMESTAMP_NS:  return ladybug_timestamp_to_zval(value, type_id, out);
+        case LBUG_INTERVAL:      return ladybug_interval_to_zval(value, out);
+        case LBUG_INTERNAL_ID:   {
             lbug_internal_id_t id;
-            if (ladybug_read_internal_id(value, &id) != SUCCESS) { return FAILURE; }
+            if (ladybug_read_internal_id(value, &id) != SUCCESS) {
+                return FAILURE;
+            }
             return ladybug_internal_id_to_zval(id, out);
         }
-        case LBUG_LIST:
-            return ladybug_list_to_zval(value, out);
-        case LBUG_STRUCT:
-            return ladybug_struct_to_zval(value, out);
+        case LBUG_LIST:   return ladybug_list_to_zval(value, out);
+        case LBUG_STRUCT: return ladybug_struct_to_zval(value, out);
         /* liblbug 0.19.1's list and struct accessors reject ARRAY and UNION values —
          * lbug_value_get_list_size() fails outright on a fixed-size ARRAY — so its own
          * rendering is the only way to reach the contents through the C API. The value is
          * intact: cast(col AS STRING) in Cypher gives the same text. Callers who want
          * structure should cast to LIST or read the union member in Cypher instead. */
         case LBUG_ARRAY:
-        case LBUG_UNION:
-            return ladybug_to_string_zval(value, out);
-        case LBUG_MAP:
-            return ladybug_map_to_zval(value, out);
-        case LBUG_NODE:
-            return ladybug_node_to_zval(value, out);
-        case LBUG_REL:
-            return ladybug_rel_to_zval(value, out);
-        case LBUG_RECURSIVE_REL:
-            return ladybug_path_to_zval(value, out);
-        default:
-            return ladybug_to_string_zval(value, out);
+        case LBUG_UNION:         return ladybug_to_string_zval(value, out);
+        case LBUG_MAP:           return ladybug_map_to_zval(value, out);
+        case LBUG_NODE:          return ladybug_node_to_zval(value, out);
+        case LBUG_REL:           return ladybug_rel_to_zval(value, out);
+        case LBUG_RECURSIVE_REL: return ladybug_path_to_zval(value, out);
+        default:                 return ladybug_to_string_zval(value, out);
     }
 
 read_failed:
-    ladybug_throw(ladybug_exception_ce, "Could not read a value of type %d from the result.", (int) type_id);
+    ladybug_throw(
+        ladybug_exception_ce, "Could not read a value of type %d from the result.", (int) type_id
+    );
     return FAILURE;
 }

@@ -299,14 +299,14 @@ final class QueryResult implements \IteratorAggregate, \Countable, \Stringable
          * backing store for its successor. Defer the actual close until the successor is
          * closed too, so freeing this result cannot free the successor out from under
          * the caller. */
-        if ($this->successor !== null && !$this->successor->closed) {
+        if ($this->successor instanceof \Ladybug\QueryResult && !$this->successor->closed) {
             return;
         }
 
         $this->connector->closeResult($this->handle);
 
         /* If the predecessor deferred its close because of us, it can now be closed. */
-        if ($this->predecessor !== null && $this->predecessor->closed) {
+        if ($this->predecessor instanceof \Ladybug\QueryResult && $this->predecessor->closed) {
             $this->predecessor->close();
         }
     }

@@ -74,6 +74,7 @@ check_exports() {
     # as a clean result. It is not: _ZNSt/_ZSt are the prefixes, and `u` in the type column is
     # STB_GNU_UNIQUE. Anything matching those without a liblbug type in the name belongs to the
     # C++ standard library and must not be visible.
+    # shellcheck disable=SC2126 # keeps the count when the second grep matches nothing
     strays=$(printf '%s\n' "$exports" | grep ' _ZNSt\| _ZSt\|^[0-9a-f]* u ' | grep -v '4lbug' | wc -l | tr -d ' ')
 
     if [ "$strays" -eq 0 ]; then
@@ -94,6 +95,7 @@ check_exports() {
         fail "exports only $lbug_cxx liblbug symbols; LOAD json will fail on undefined symbols"
     fi
 
+    # shellcheck disable=SC2015 # pass never fails, so fail only runs when grep does
     printf '%s\n' "$exports" | grep -q ' get_module' \
         && pass "exports get_module" \
         || fail "does not export get_module; PHP cannot load this at all"
@@ -140,6 +142,7 @@ PHP
         printf '  note  exited %d without a signal (offline, or an error above), no verdict\n' "$status"
     fi
 else
+    # shellcheck disable=SC2015 # pass never fails, so fail only runs when grep does
     php -d extension="$SO" -m | grep -q '^ladybug$' \
         && pass "the extension loads" \
         || fail "the extension does not load"

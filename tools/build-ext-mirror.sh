@@ -101,6 +101,7 @@ for required in config.m4 composer.json ladybug.map LICENSE README.md; do
     test -s "$OUT/$required" || { echo "mirror is missing $required" >&2; exit 1; }
 done
 
+# shellcheck disable=SC2016 # $argv is PHP, not shell
 php -r 'exit(json_decode(file_get_contents($argv[1])) === null ? 1 : 0);' "$OUT/composer.json" \
     || { echo "composer.json is not valid JSON" >&2; exit 1; }
 
@@ -118,6 +119,7 @@ if [ "${tag#v}" != "$version" ]; then
     exit 1
 fi
 
+# shellcheck disable=SC2015 # the || branch is the error path for either failure
 git -C "$ROOT" diff --quiet && git -C "$ROOT" diff --cached --quiet \
     || { echo "the working tree is dirty; the mirror must match a committed state" >&2; exit 1; }
 

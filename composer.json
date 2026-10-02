@@ -53,10 +53,10 @@
         "rector:fix": "rector process",
         "cs": "php-cs-fixer fix --dry-run --diff",
         "cs:fix": "php-cs-fixer fix",
+        "lint": "bin/lint.sh",
+        "lint:fix": "bin/lint.sh --fix",
         "ci": [
-            "@cs",
-            "@stan",
-            "@rector",
+            "@lint",
             "@test"
         ],
         "test:both": [
@@ -67,7 +67,9 @@
     "scripts-descriptions": {
         "test:ffi": "Runs the integration suite against the FFI connector",
         "test:ext": "Runs the same suite against the native extension",
-        "ci": "Everything CI runs: style, static analysis, refactor check, tests",
+        "lint": "bin/lint.sh: php-cs-fixer, PHPStan, Rector, clang-format, shellcheck, hadolint (check only)",
+        "lint:fix": "bin/lint.sh --fix: apply the fixers, then check",
+        "ci": "Everything CI runs: lint and tests",
         "test:both": "Runs the integration suite twice: once per backend"
     }
 }

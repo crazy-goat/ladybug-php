@@ -7,6 +7,7 @@
 #   make test-asan        integration suite under AddressSanitizer (needs ext-asan)
 #   make bench            FFI vs the extension, both in one process
 #   make docker-test      the whole suite on Linux (DOCKER_PHP=8.4 to pick a version)
+#   make lint             bin/lint.sh: every static check, including the C style
 #   make test             PHP suite on the default connector
 #   make test-both        PHP suite on FFI and on the extension
 
@@ -27,7 +28,7 @@ define with_mode
 fi
 endef
 
-.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci docker-build docker-test docker-shell docker-repro-install docker-static mirror-ext
+.PHONY: ext ext-static ext-asan ext-test ext-clean liblbug test test-ffi test-ext test-both test-asan bench ci lint docker-build docker-test docker-shell docker-repro-install docker-static mirror-ext
 
 ext:
 	$(call with_mode,shared)
@@ -172,6 +173,9 @@ docker-repro-install: docker-build
 	@echo "--- with intl, connector fix active: expect 0"
 	@docker run --rm $(docker_platform_arg) -v $(CURDIR)/build/repro-install.php:/tmp/r.php:ro $(DOCKER_IMAGE)-intl$(docker_tag_suffix) \
 		php /tmp/r.php; echo "    exit=$$?"
+
+lint:
+	bin/lint.sh
 
 ci:
 	composer ci

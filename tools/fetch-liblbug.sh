@@ -30,7 +30,11 @@ fi
 
 ARCHIVE="${VARIANT}-${PLATFORM}.tar.gz"
 URL="https://github.com/LadybugDB/ladybug/releases/download/v${VERSION}/${ARCHIVE}"
-TARGET="$(cd "$(dirname "$0")/.." && pwd)/lib"
+if [[ -f "${BASH_SOURCE[0]:-}" ]]; then
+    TARGET="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib"
+else
+    TARGET="$PWD/lib"
+fi
 
 # SHA-256 of every archive this script is known to fetch, as published with the release
 # (`gh release view v<version> -R LadybugDB/ladybug --json assets`). Keep it in this file:

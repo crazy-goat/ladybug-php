@@ -40,6 +40,8 @@ requirement the package refuses to run without — see
 - `tools/fetch-liblbug.sh` verifies the archive against a pinned SHA-256 before unpacking it, and
   unpacks into a scratch directory, rejecting absolute or `..` paths and symlinks that leave the
   directory. A version without a pinned digest is refused unless `LIBLBUG_SHA256` is set. (#20)
+- When read from stdin, `tools/fetch-liblbug.sh` now unpacks into the current directory's `lib/`,
+  as expected by the generated mirror README's static-install command. (#9)
 - Rector's `instanceof` rule failed on `QueryResult::close()`, which kept the `quality` CI step
   red.
 - A reused prepared statement no longer keeps parameters bound by an earlier execution. Because

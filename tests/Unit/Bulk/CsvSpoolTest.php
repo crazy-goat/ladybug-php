@@ -118,6 +118,49 @@ final class CsvSpoolTest extends TestCase
         self::assertSame("from an object\n", $this->write([$value]));
     }
 
+    public function testAnEmptyStringableIsRefusedLikeAnEmptyString(): void
+    {
+        // A Stringable that stringifies to '' is the same value as '', so it has to meet the
+        // same guard: it used to be written as an empty unquoted field, which liblbug reads
+        // back as NULL.
+        $this->expectException(TypeException::class);
+        $this->expectExceptionMessageMatches('/empty string/');
+
+        $this->write([$this->stringableReturning('')]);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function texts(): iterable
+    {
+        yield 'plain' => ['from an object'];
+        yield 'comma' => ['Smith, John'];
+        yield 'quote' => ['say "hi"'];
+        yield 'newline' => ["two\nlines"];
+        yield 'carriage return' => ["old\rmac"];
+    }
+
+    /**
+     * The fix routes both through one encoder, so the two entry points have to produce the
+     * same bytes — a fix that only refused the empty case would still let ordinary values
+     * drift apart, and so would one that wrote a Stringable without the escaping.
+     */
+    #[DataProvider('texts')]
+    public function testAStringableIsWrittenExactlyLikeTheStringItReturns(string $text): void
+    {
+        self::assertSame($this->write([$text]), $this->write([$this->stringableReturning($text)]));
+    }
+
+    public function testAStringableCarryingANewlineAlsoRequiresASerialRead(): void
+    {
+        // The flag has to be raised wherever the text came from, or the parallel CSV reader
+        // rejects the copy with "Quoted newlines are not supported in parallel CSV reader".
+        $spool = CsvSpool::create();
+        $this->spool = $spool;
+        $spool->writeRow([$this->stringableReturning("two\nlines")]);
+
+        self::assertTrue($spool->needsSerialRead());
+    }
+
     public function testSerialReadIsOnlyRequestedWhenAValueCarriesANewline(): void
     {
         // Asking for a serial read costs throughput on every copy, so it has to be conditional.
@@ -165,11 +208,25 @@ final class CsvSpoolTest extends TestCase
     /** @param list<mixed> $values */
     private function write(array $values): string
     {
+        $previous = $this->spool;
         $spool = CsvSpool::create();
         $this->spool = $spool;
+        $previous?->discard();
         $spool->writeRow($values);
         $spool->close();
 
         return (string) file_get_contents($spool->path);
+    }
+
+    private function stringableReturning(string $text): \Stringable
+    {
+        return new class ($text) implements \Stringable {
+            public function __construct(private readonly string $text) {}
+
+            public function __toString(): string
+            {
+                return $this->text;
+            }
+        };
     }
 }

@@ -196,6 +196,47 @@ final class BulkCopyTest extends IntegrationTestCase
         self::assertStringContainsString('CREATE', $message, 'the message has to name the way out');
     }
 
+    public function testAnEmptyStringableIsRefusedRatherThanSilentlyStoredAsNull(): void
+    {
+        // A Stringable that stringifies to '' is the value '', so it has to meet the same
+        // guard. It used to be written as an empty unquoted field, which liblbug reads back
+        // as NULL — on both backends, because the CSV is spooled before either one sees it.
+        $this->connection->run('CREATE NODE TABLE Copy(id INT64, s STRING, PRIMARY KEY(id))');
+
+        try {
+            $this->connection->copyInto('Copy', [['id' => 1, 's' => $this->stringableReturning('')]]);
+            self::fail('Expected a TypeException.');
+        } catch (TypeException $e) {
+            $message = $e->getMessage();
+        }
+
+        self::assertStringContainsString('empty string', $message);
+        self::assertStringContainsString('CREATE', $message, 'the message has to name the way out');
+        self::assertSame(
+            0,
+            $this->connection->query('MATCH (c:Copy) RETURN count(*)')->fetchOne(),
+            'a refused row must not land at all',
+        );
+    }
+
+    public function testAStringableIsCopiedAsTheTextItReturns(): void
+    {
+        // Ordinary Stringables keep working, quoted and escaped exactly as the string they
+        // return — only the empty case was ever in question.
+        $this->createPeople();
+
+        $copied = $this->connection->copyInto('Bulk', [
+            ['name' => $this->stringableReturning('Smith, John'), 'age' => 36],
+            ['name' => $this->stringableReturning('say "hi"'), 'age' => 41],
+        ]);
+
+        self::assertSame(2, $copied);
+        self::assertSame(
+            [['b.name' => 'Smith, John', 'b.age' => 36], ['b.name' => 'say "hi"', 'b.age' => 41]],
+            $this->connection->query('MATCH (b:Bulk) RETURN b.name, b.age ORDER BY b.age')->fetchAll(),
+        );
+    }
+
     public function testAnUnsupportedValueIsRejectedBeforeTheDatabaseSeesIt(): void
     {
         $this->createPeople();
@@ -253,6 +294,18 @@ final class BulkCopyTest extends IntegrationTestCase
     private function copyFilesInTemp(): int
     {
         return \count(glob(sys_get_temp_dir() . '/ladybug-copy-*') ?: []);
+    }
+
+    private function stringableReturning(string $text): \Stringable
+    {
+        return new class ($text) implements \Stringable {
+            public function __construct(private readonly string $text) {}
+
+            public function __toString(): string
+            {
+                return $this->text;
+            }
+        };
     }
 
     private function createPeople(): void

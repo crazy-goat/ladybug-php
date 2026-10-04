@@ -35,6 +35,12 @@ requirement the package refuses to run without — see
 
 ### Fixed
 
+- `Connection::copyInto()` no longer silently stores `NULL` for a `Stringable` that returns an
+  empty string. Such a value was written as a raw field of its own, so it missed the guard that
+  refuses an empty string — the very change of value liblbug's CSV reader forces — and the row
+  landed with `NULL` on both connectors. Text now reaches the copy file through a single encoder,
+  whatever the caller passed, so the guard has no way around it. Non-empty `Stringable`s are
+  written exactly as before. Closes #28.
 - A `QueryException` from a failed prepared-statement execution (and so from `Connection::query()`
   with parameters) or from a later statement of `queryMultiple()` now carries the Cypher text, on both connectors. It was `null`. (#134)
 - `tools/fetch-liblbug.sh` verifies the archive against a pinned SHA-256 before unpacking it, and

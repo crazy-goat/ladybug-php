@@ -112,9 +112,14 @@ final class CsvSpool
             \is_bool($value) => $value ? 'true' : 'false',
             \is_int($value) => (string) $value,
             \is_float($value) => $this->float($value),
-            \is_string($value) => $this->string($value),
+            // A date is checked first: it has a dialect of its own and must never be
+            // flattened into text, however it would stringify.
             $value instanceof \DateTimeInterface => $this->temporal($value),
-            $value instanceof \Stringable => $this->quote((string) $value),
+            // Text has exactly one way into the file, whether the caller passed a string or
+            // an object that returns one — so whatever string() refuses, an object cannot get
+            // past. As two arms these had two sets of rules, and the second one skipped the
+            // empty-string guard: an empty Stringable was stored as NULL.
+            \is_string($value) || $value instanceof \Stringable => $this->string((string) $value),
             default => throw new TypeException(\sprintf(
                 'Cannot copy a value of type %s. COPY FROM takes scalars, null and DateTimeInterface; '
                 . 'for lists, structs or maps use CREATE with parameters instead.',
@@ -124,6 +129,10 @@ final class CsvSpool
     }
 
     /**
+     * The only route from a PHP string to a field in the file, which is why it does the
+     * escaping too: nothing else here writes text, so there is nothing that can forget the
+     * guard below.
+     *
      * liblbug 0.19.1's CSV reader has no NULL sentinel — `""` and an empty field both read
      * back as NULL, and there is no option to separate them (null_str, nullstr and
      * NULL_STRING are all rejected as unrecognised). Rather than silently storing NULL where
@@ -140,7 +149,21 @@ final class CsvSpool
             );
         }
 
-        return $this->quote($value);
+        $hasLineBreak = str_contains($value, "\n") || str_contains($value, "\r");
+        if ($hasLineBreak) {
+            $this->sawNewline = true;
+        }
+
+        // Quoting only what needs it keeps the file smaller and the copy faster.
+        $mustQuote = $hasLineBreak
+            || str_contains($value, self::DELIMITER)
+            || str_contains($value, self::QUOTE);
+
+        if (!$mustQuote) {
+            return $value;
+        }
+
+        return self::QUOTE . str_replace(self::QUOTE, self::QUOTE . self::QUOTE, $value) . self::QUOTE;
     }
 
     /**
@@ -174,24 +197,5 @@ final class CsvSpool
         return str_contains($shortest, 'E') || str_contains($shortest, '.')
             ? $shortest
             : $shortest . '.0';
-    }
-
-    private function quote(string $value): string
-    {
-        if (str_contains($value, "\n") || str_contains($value, "\r")) {
-            $this->sawNewline = true;
-        }
-
-        // Quoting only what needs it keeps the file smaller and the copy faster.
-        $mustQuote = str_contains($value, self::DELIMITER)
-            || str_contains($value, self::QUOTE)
-            || str_contains($value, "\n")
-            || str_contains($value, "\r");
-
-        if (!$mustQuote) {
-            return $value;
-        }
-
-        return self::QUOTE . str_replace(self::QUOTE, self::QUOTE . self::QUOTE, $value) . self::QUOTE;
     }
 }
